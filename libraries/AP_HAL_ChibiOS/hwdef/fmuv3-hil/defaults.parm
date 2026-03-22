@@ -1,22 +1,21 @@
-# Default parameters for fmuv3-hil (Hardware-In-the-Loop simulation)
-# These are loaded at boot as firmware defaults; user-saved params take precedence.
+# Default parameters for fmuv3-hil (SITL running on hardware)
+# ArduPlane's own aerodynamic model runs on the MCU; X-Plane is used
+# for visualisation only (sitl_xplane.py mirrors SIMSTATE to X-Plane).
 
-# EKF: use EKF3, fusing real IMU + GPS_INPUT (accel/gyro/baro from HIL_SENSOR;
-# position/velocity/heading from GPS_INPUT)
+# EKF3
 AHRS_EKF_TYPE 3
 
-# EKF3 yaw source: use GPS yaw (from GPS_INPUT yaw field) instead of compass.
-# Without this, EK3_SRC1_YAW defaults to 1 (magnetometer) and the GPS_INPUT
-# yaw is silently ignored, leaving heading driven by the bench compass.
-EK3_SRC1_YAW 2
+# EKF3 yaw source: compass (SITL magnetometer from SIMState)
+EK3_SRC1_YAW 1
 
-# GPS: accept GPS_INPUT MAVLink messages instead of serial GPS
-GPS1_TYPE 14
+# Compass: enabled — SITL compass backend reads from SIMState
+COMPASS_USE 1
 
-# Vision: disabled — EKF3 uses GPS_INPUT for position/heading (EK3_SRC1_YAW=2).
-# Sending VISION_POSITION_ESTIMATE with position (0,0,0) confuses EKF3 velocity
-# fusion and causes wrong stabilize calculations.
-VISO_TYPE 0
+# GPS: SITL internal backend (SIMState provides position/velocity)
+GPS1_TYPE 1
+
+# Airspeed: SITL backend (reads differential pressure from SIMState)
+ARSPD_TYPE 100
 
 # Safety: no safety switch needed in simulation
 BRD_SAFETY_DEFLT 0
@@ -24,9 +23,15 @@ BRD_SAFETY_DEFLT 0
 # Arming: skip all pre-arm checks for simulation (-1 = skip all)
 ARMING_SKIPCHK -1
 
-# Logging: disabled — SD card not needed for HIL bench testing
+# Scheduler: 50 Hz — prevents watchdog reset when Plane SITL physics
+# runs SIMState::update() on the STM32F427 every loop tick
+SCHED_LOOP_RATE 50
+
+# Logging: disabled — SD card not needed for bench simulation
 LOG_BITMASK 0
 LOG_BACKEND_TYPE 0
 LOG_DISARM 0
-SCHED_LOOP_RATE 100
-ARSPD_TYPE 100
+
+# SITL speedup: 1x real-time (no speedup on hardware)
+SIM_SPEEDUP 1
+ARMING_REQUIRE 1

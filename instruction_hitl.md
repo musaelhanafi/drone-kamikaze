@@ -153,7 +153,8 @@ Running — Ctrl+C to stop
 | `[XP] First DREF` never prints | No SERVO_OUTPUT_RAW from FC | Check MAVProxy is running; FC is armed or ARMING_REQUIRE=0 |
 | Controls don't move in X-Plane | Override DREFs lost | Wait up to 5 s for automatic refresh; reload X-Plane aircraft |
 | EKF not initialising | GPS_INPUT not accepted | Verify GPS1_TYPE=14 in QGC parameters |
-| Heading wrong | Hardware compass active | Verify COMPASS_USE=0,1,2 are set (embedded in defaults.parm) |
+| Heading wrong / drifting | `mag_psi` RREF not received | Confirm X-Plane is unpaused; check `--debug` output for `[att] hdg` vs QGC heading |
+| Heading offset by fixed angle | Wrong `MAG_DIP_DEG` or `MAG_INTENSITY_G` | Edit constants in `mavlink_xplane.py` to match airport location |
 
 ---
 
@@ -177,12 +178,32 @@ Running — Ctrl+C to stop
    | 3 | Speeds | IAS (knots) → diff pressure for airspeed sensor |
    | 4 | G-load | body-frame accelerations (x, y, z) |
    | 16 | Angular velocities | roll/pitch/yaw rate → gyro |
-   | 17 | Pitch, roll, heading | attitude + true heading → GPS yaw |
+   | 17 | Pitch, roll, heading | roll/pitch → accel/gyro rotation; true heading for debug logging |
    | 20 | Lat, lon, altitude | GPS position |
    | 21 | Loc, vel, dist | NED velocity → GPS velocity |
 
    Rows that are **not** ticked will not be sent and the bridge will silently
    use stale/zero values for those sensors.
+
+   The bridge also subscribes to the following X-Plane **RREF** values
+   (requested automatically at startup — no manual configuration needed):
+
+   | DREF path | Rate | Used for |
+   |---|---|---|
+   | `sim/version/xplane_internal_version` | 1 Hz | Detect XP11 vs XP12 gyro unit difference |
+   | `sim/flightmodel/position/mag_psi` | 10 Hz | Magnetic heading → magnetometer body vector |
+
+   And sends these **DREF write** commands to X-Plane for control surface overrides:
+
+   | DREF path | Channel | Conversion |
+   |---|---|---|
+   | `sim/joystick/yoke_roll_ratio` | CH1 (aileron) | PWM 1000–2000 → −1.0…+1.0 |
+   | `sim/joystick/yoke_pitch_ratio` | CH2 (elevator) | PWM 1000–2000 → −1.0…+1.0 |
+   | `sim/flightmodel/engine/ENGN_thro_use[0..3]` | CH3 (throttle) | PWM 1000–2000 → 0.0…1.0 |
+   | `sim/joystick/yoke_heading_ratio` | CH4 (rudder) | PWM 1000–2000 → −1.0…+1.0 |
+   | `sim/cockpit2/controls/flap_ratio` | CH5 (flap) | PWM 1000–2000 → 0.0…1.0 |
+   | `sim/operation/override/override_joystick` | — | Set to 1.0 on start; refreshed every 5 s |
+   | `sim/operation/override/override_throttles` | — | Set to 1.0 on start; refreshed every 5 s |
 
 3. **Unpause** the simulation (press `P` or click the pause button).
 
@@ -201,10 +222,18 @@ automatically on first boot with clean EEPROM.  Key values:
 |---|---|---|
 | `GPS1_TYPE` | 14 | Accept GPS_INPUT MAVLink messages |
 | `ARSPD_TYPE` | 100 | SITL airspeed backend (reads HIL_SENSOR diff pressure) |
-| `EK3_SRC1_YAW` | 2 | Yaw from GPS_INPUT heading field |
-| `COMPASS_USE` | 0 | Disable hardware compass fusion |
+| `EK3_SRC1_YAW` | 2 | Yaw from GPS_INPUT (bridge sends X-Plane `mag_psi` as GPS heading) |
 | `SCHED_LOOP_RATE` | 100 | Allow 50 Hz SERVO_OUTPUT_RAW stream |
 | `BRD_SAFETY_DEFLT` | 0 | Disable safety switch requirement |
+
+> **Heading source:** EKF3 yaw comes from `GPS_INPUT.yaw`, which the bridge
+> populates with X-Plane's `sim/flightmodel/position/mag_psi` (magnetic heading via RREF).
+> QGC heading will match the X-Plane cockpit DG once the first RREF packet arrives
+> (~1 s after X-Plane unpauses).  No compass calibration or `COMPASS_DEC` tuning needed.
+>
+> The bridge also sends a simulated magnetometer body vector via `HIL_SENSOR` (driven
+> by `MAG_DIP_DEG` / `MAG_INTENSITY_G` at the top of `mavlink_xplane.py`).  This is
+> secondary — EKF yaw is GPS-driven — but tune these if compass health warnings appear.
 
 To reset parameters to defaults (e.g. after flashing new firmware):
 

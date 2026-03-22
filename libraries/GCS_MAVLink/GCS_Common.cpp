@@ -4564,6 +4564,9 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_HIL_SENSOR:
         handle_hil_sensor(msg);
         break;
+    case MAVLINK_MSG_ID_HIL_STATE_QUATERNION:
+        handle_hil_state_quaternion(msg);
+        break;
 #endif
 
 #if HAL_VISUALODOM_ENABLED
@@ -4902,6 +4905,66 @@ void GCS_MAVLINK::handle_hil_sensor(const mavlink_message_t &msg)
     // path (frame_num > 0) would produce samples only at the HIL_SENSOR rate
     // (50 Hz), causing wait_for_sample() to stall between frames and trigger
     // the watchdog.
+}
+
+/*
+  handle HIL_STATE_QUATERNION: inject ground-truth attitude, velocity, and
+  position into sitl->state at the sender's rate (typically 50 Hz).
+
+  Complements handle_hil_sensor() which handles IMU/baro/compass at 100 Hz:
+    HIL_SENSOR          → gyro, accel, baro, compass  (100 Hz)
+    HIL_STATE_QUATERNION→ attitude quat, vel NED, lat/lon (50 Hz)
+    GPS_INPUT           → GPS fix with yaw for EKF fusion  (5 Hz)
+
+  Fields deliberately NOT overwritten here (HIL_SENSOR owns them):
+    xAccel/yAccel/zAccel — HIL_SENSOR sends m/s²; HIL_STATE_QUATERNION
+                           sends milli-g which is less direct.
+    altitude             — HIL_SENSOR sends AGL via pressure_alt; MSL from
+                           HIL_STATE_QUATERNION (mm) would break baro origin.
+    rollRate/pitchRate/yawRate — HIL_SENSOR updates these at 100 Hz in
+                           deg/s; let it stay as the primary source.
+*/
+void GCS_MAVLINK::handle_hil_state_quaternion(const mavlink_message_t &msg)
+{
+    SITL::SIM *sitl = AP::sitl();
+    if (sitl == nullptr) {
+        return;
+    }
+
+    mavlink_hil_state_quaternion_t pkt;
+    mavlink_msg_hil_state_quaternion_decode(&msg, &pkt);
+
+    // attitude quaternion [w, x, y, z] → Euler + quaternion in sitl->state.
+    // AP_AHRS_SIM (used as fallback) reads rollDeg/pitchDeg/yawDeg/quaternion.
+    Quaternion q(pkt.attitude_quaternion[0],
+                 pkt.attitude_quaternion[1],
+                 pkt.attitude_quaternion[2],
+                 pkt.attitude_quaternion[3]);
+    sitl->state.quaternion = q;
+
+    float roll_r, pitch_r, yaw_r;
+    q.to_euler(roll_r, pitch_r, yaw_r);
+    sitl->state.rollDeg  = degrees(roll_r);
+    sitl->state.pitchDeg = degrees(pitch_r);
+    sitl->state.yawDeg   = degrees(yaw_r);   // true heading (deg)
+    sitl->state.heading  = wrap_360(degrees(yaw_r));
+
+    // velocity NED: HIL_STATE_QUATERNION sends cm/s, sitl->state wants m/s.
+    // GPS_INPUT only updates these at ~5 Hz; 50 Hz here feeds AP_AHRS_SIM
+    // groundspeed and any subsystem that reads sitl->state directly.
+    sitl->state.speedN = pkt.vx * 0.01f;
+    sitl->state.speedE = pkt.vy * 0.01f;
+    sitl->state.speedD = pkt.vz * 0.01f;
+
+    // position: lat/lon in degE7 → degrees.
+    // Higher rate than GPS_INPUT so AP_AHRS_SIM always has current position.
+    sitl->state.latitude  = pkt.lat * 1.0e-7;
+    sitl->state.longitude = pkt.lon * 1.0e-7;
+
+    // airspeed (cm/s → m/s), if provided.
+    if (pkt.true_airspeed > 0) {
+        sitl->state.airspeed = pkt.true_airspeed * 0.01f;
+    }
 }
 
 void GCS_MAVLINK::send_simstate() const

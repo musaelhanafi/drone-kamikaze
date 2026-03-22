@@ -532,6 +532,7 @@ protected:
 
 #if AP_SIM_ENABLED
     void handle_hil_sensor(const mavlink_message_t &msg);
+    void handle_hil_state_quaternion(const mavlink_message_t &msg);
 #endif
 
     virtual bool persist_streamrates() const { return false; }

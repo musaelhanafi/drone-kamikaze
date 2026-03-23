@@ -20,12 +20,10 @@ Usage:
   python3 test_joystick.py --sitl tcp:127.0.0.1:5760
   python3 test_joystick.py --axes 0 1 3 2 4 --invert 1
   python3 test_joystick.py --manual-control         # also send MANUAL_CONTROL
-  python3 test_joystick.py --xplane                 # also send elevon DREFs to X-Plane
+  python3 test_joystick.py --xplane                 # also send aileron/elevator DREFs to X-Plane
 """
 
 import argparse
-import socket
-import struct
 import time
 
 try:
@@ -34,20 +32,15 @@ try:
 except ImportError:
     _PYGAME = False
 
+try:
+    import xpc
+    _XPC = True
+except ImportError:
+    _XPC = False
+
 from pymavlink import mavutil
 
-UINT16_MAX   = 65535
-ELEVON_MAX_DEG = 20.0   # matches Plane Maker control surface deflection limit
-
-
-def _xp_send_dref(sock, addr, name: str, value: float):
-    name_b = name.encode()
-    sock.sendto(b'DREF\x00' + struct.pack('<f', value) +
-                name_b + b'\x00' * (500 - len(name_b)), addr)
-
-
-def _pwm_to_deg(pwm: int) -> float:
-    return ELEVON_MAX_DEG * (pwm - 1500) / 500.0
+UINT16_MAX     = 65535
 
 _FLTMODE_CENTRES = [1165, 1295, 1425, 1555, 1685, 1815]
 
@@ -101,10 +94,12 @@ def main():
     ap.add_argument('--manual-control', action='store_true',
                     help='Also send MANUAL_CONTROL (QGC joystick protocol)')
     ap.add_argument('--xplane',        action='store_true',
-                    help='Also send wing1l/wing1r elevon DREFs to X-Plane')
-    ap.add_argument('--xplane-host',   default='127.0.0.1')
-    ap.add_argument('--xplane-port',   type=int, default=49000,
-                    help='X-Plane DREF port (default: 49000)')
+                    help='Also send aileron/elevator/throttle DREFs to X-Plane via XPC')
+    ap.add_argument('--xpc-host',      default='127.0.0.1')
+    ap.add_argument('--xpc-port',      type=int, default=49009,
+                    help='XPlaneConnect plugin port (default: 49009)')
+    ap.add_argument('--xpc-timeout',   type=int, default=2000,
+                    help='XPC socket timeout ms (default: 2000)')
     ap.add_argument('--list',          action='store_true',
                     help='List joysticks and exit')
     ap.add_argument('--no-mavlink',    action='store_true',
@@ -141,18 +136,22 @@ def main():
     roll_ax, pitch_ax, thr_ax, yaw_ax, mode_ax = args.axes
     invert_set = set(args.invert)
 
-    # ── X-Plane socket ────────────────────────────────────────────────────────
-    xp_sock = None
-    xp_addr = (args.xplane_host, args.xplane_port)
+    # ── XPlaneConnect client ──────────────────────────────────────────────────
+    xp_client = None
     if args.xplane:
-        xp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        _xp_send_dref(xp_sock, xp_addr,
-                      'sim/operation/override/override_joystick',         1.0)
-        _xp_send_dref(xp_sock, xp_addr,
-                      'sim/operation/override/override_throttles',        1.0)
-        _xp_send_dref(xp_sock, xp_addr,
-                      'sim/operation/override/override_control_surfaces', 1.0)
-        print(f'[XP]  overrides SET (joystick + throttles + surfaces) → {xp_addr}')
+        if not _XPC:
+            print('[XP]  xpc not installed — run: pip3 install xplane-connect')
+        else:
+            xp_client = xpc.XPlaneConnect(xpHost=args.xpc_host, xpPort=args.xpc_port,
+                                          timeout=args.xpc_timeout)
+            try:
+                posi = xp_client.getPOSI()
+                print(f'[XP]  connected → {args.xpc_host}:{args.xpc_port}  '
+                      f'lat={posi[0]:.4f}  lon={posi[1]:.4f}  alt={posi[2]:.1f} m')
+            except Exception as e:
+                print(f'[XP]  ERROR — {e}')
+                print('[XP]  Is XPlaneConnect plugin installed and X-Plane unpaused?')
+                xp_client = None
 
     # ── MAVLink ───────────────────────────────────────────────────────────────
     mav = None
@@ -215,18 +214,17 @@ def main():
                         0,   # buttons
                     )
 
-            # ── X-Plane elevon + throttle DREFs ──────────────────────────────
-            if xp_sock and (changed or now - last_send >= ivl):
-                _xp_send_dref(xp_sock, xp_addr,
-                              'sim/flightmodel/controls/wing1l_ail1def',
-                              _pwm_to_deg(ch1))
-                _xp_send_dref(xp_sock, xp_addr,
-                              'sim/flightmodel/controls/wing1r_ail1def',
-                              _pwm_to_deg(ch2))
+            # ── X-Plane aileron / elevator / throttle via XPC ────────────────
+            if xp_client and changed:
+                ail_r     = (ch1 - 1500) / 500.0
+                elev_r    = (ch2 - 1500) / 500.0
                 thr_ratio = max(0.0, min(1.0, (ch3 - 1000) / 1000.0))
-                _xp_send_dref(xp_sock, xp_addr,
-                              'sim/flightmodel/engine/ENGN_thro_use[0]',
-                              thr_ratio)
+                xp_client.sendDREFs(
+                    ['sim/flightmodel/controls/ailn_rat',
+                     'sim/flightmodel/controls/elv_rat',
+                     'sim/cockpit2/engine/actuators/throttle_ratio[0]'],
+                    [ail_r, -elev_r, thr_ratio],
+                )
 
             # ── terminal display ──────────────────────────────────────────────
             if now - last_print >= 0.1:

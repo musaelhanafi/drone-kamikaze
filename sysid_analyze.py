@@ -285,9 +285,8 @@ def plot_comparison(data: dict, results: list):
         return
 
     axes_map = [
-        ('ail_r',  'xp_p_dps',  'mav_p_dps',  'Roll (aileron → P rate)'),
-        ('elev_r', 'xp_q_dps',  'mav_q_dps',  'Pitch (elevator → Q rate)'),
-        ('rud_r',  'xp_r_dps',  'mav_r_dps',  'Yaw (rudder → R rate)'),
+        ('ail_r',  'xp_p_dps',  'mav_p_dps',  'Roll (left elevon → P rate)'),
+        ('elev_r', 'xp_q_dps',  'mav_q_dps',  'Pitch (right elevon → Q rate)'),
         ('thr',    'xp_ias_kts', None,         'Throttle → IAS'),
     ]
 
@@ -351,8 +350,6 @@ def main():
                      'roll',  min_step=args.min_step),
         analyse_axis(data, 'elev_r', 'xp_q_dps', 'mav_q_dps',
                      'pitch', min_step=args.min_step),
-        analyse_axis(data, 'rud_r',  'xp_r_dps', 'mav_r_dps',
-                     'yaw',   min_step=args.min_step),
         analyse_throttle_airspeed(data),
     ]
 

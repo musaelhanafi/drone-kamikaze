@@ -196,15 +196,20 @@ def xp_parse(pkt: bytes) -> dict:
 # ── DREF / servo map ──────────────────────────────────────────────────────────
 def _angle(pwm, r=1.0): return r * (pwm - 1500) / 500.0
 def _range(pwm, r=1.0): return r * (pwm - 1000) / 1000.0
+def _deg(pwm, max_deg=20.0): return max_deg * (pwm - 1500) / 500.0
 
+# Flying-wing elevon mixing: ArduPilot outputs per-elevon PWM on CH1/CH2.
+# Write directly to wing surface deflection DREFs (degrees) instead of joystick
+# yoke ratios, so X-Plane applies no additional internal mixing on top.
+# CH0 = SERVO1 = ELEVON_LEFT  → wing1l (left elevon, degrees)
+# CH1 = SERVO2 = ELEVON_RIGHT → wing1r (right elevon, degrees)
 SERVO_DREFS = [
-    ('sim/joystick/yoke_roll_ratio',             0, _angle),
-    ('sim/joystick/yoke_pitch_ratio',            1, _angle),
+    ('sim/flightmodel/controls/wing1l_ail1def',  0, _deg),
+    ('sim/flightmodel/controls/wing1r_ail1def',  1, _deg),
     ('sim/flightmodel/engine/ENGN_thro_use[0]',  2, _range),
     ('sim/flightmodel/engine/ENGN_thro_use[1]',  2, _range),
     ('sim/flightmodel/engine/ENGN_thro_use[2]',  2, _range),
     ('sim/flightmodel/engine/ENGN_thro_use[3]',  2, _range),
-    ('sim/joystick/yoke_heading_ratio',           3, _angle),
     ('sim/cockpit2/controls/flap_ratio',          4, _range),
 ]
 
@@ -342,8 +347,9 @@ def main():
     xp_dsel(xp_sock, xp_addr, REQUIRED_ROWS)
     xp_rref(xp_sock, xp_addr, 'sim/version/xplane_internal_version', RREF_VERSION, 1)
 
-    xp_dref(xp_sock, xp_addr, 'sim/operation/override/override_joystick',  1.0)
-    xp_dref(xp_sock, xp_addr, 'sim/operation/override/override_throttles', 1.0)
+    xp_dref(xp_sock, xp_addr, 'sim/operation/override/override_joystick',         1.0)
+    xp_dref(xp_sock, xp_addr, 'sim/operation/override/override_throttles',        1.0)
+    xp_dref(xp_sock, xp_addr, 'sim/operation/override/override_control_surfaces', 1.0)
 
     xp_dref(xp_sock, xp_addr, 'sim/flightmodel/controls/parkbrake', 1.0)
     print('[XP]  Parking brake SET')
@@ -398,9 +404,11 @@ def main():
         if now - last_dsel >= 5.0:
             xp_dsel(xp_sock, xp_addr, REQUIRED_ROWS)
             xp_dref(xp_sock, xp_addr,
-                    'sim/operation/override/override_joystick',  1.0)
+                    'sim/operation/override/override_joystick',         1.0)
             xp_dref(xp_sock, xp_addr,
-                    'sim/operation/override/override_throttles', 1.0)
+                    'sim/operation/override/override_throttles',        1.0)
+            xp_dref(xp_sock, xp_addr,
+                    'sim/operation/override/override_control_surfaces', 1.0)
             last_dsel = now
 
         # ── receive X-Plane DATA@ ────────────────────────────────────────────

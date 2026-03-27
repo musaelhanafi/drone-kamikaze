@@ -407,7 +407,6 @@ void Plane::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel
         rudder = -rudder;
     }
     if (elevons) {
-        // fake an elevon plane
         float ch1 = aileron;
         float ch2 = elevator;
         aileron  = (ch2-ch1)/2.0f;

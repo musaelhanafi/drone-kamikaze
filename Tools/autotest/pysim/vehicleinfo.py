@@ -340,6 +340,14 @@ class VehicleInfo(object):
                 "waf_target": "bin/arduplane",
                 "default_params_filename": ["models/plane.parm", "default_params/plane-elevons.parm"],
             },
+            "plane-elevon-hil": {
+                "waf_target": "bin/arduplane",
+                "default_params_filename": [
+                    "models/plane.parm",
+                    "default_params/plane-elevons.parm",
+                    "libraries/AP_HAL_ChibiOS/hwdef/fmuv3-hil/defaults.parm",
+                ],
+            },
             "plane-vtail": {
                 "waf_target": "bin/arduplane",
                 "default_params_filename": ["models/plane.parm", "default_params/plane-vtail.parm"],

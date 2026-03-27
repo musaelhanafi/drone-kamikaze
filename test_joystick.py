@@ -24,6 +24,8 @@ Usage:
 """
 
 import argparse
+import socket
+import struct
 import time
 
 try:
@@ -31,12 +33,6 @@ try:
     _PYGAME = True
 except ImportError:
     _PYGAME = False
-
-try:
-    import xpc
-    _XPC = True
-except ImportError:
-    _XPC = False
 
 from pymavlink import mavutil
 
@@ -94,12 +90,10 @@ def main():
     ap.add_argument('--manual-control', action='store_true',
                     help='Also send MANUAL_CONTROL (QGC joystick protocol)')
     ap.add_argument('--xplane',        action='store_true',
-                    help='Also send aileron/elevator/throttle DREFs to X-Plane via XPC')
-    ap.add_argument('--xpc-host',      default='127.0.0.1')
-    ap.add_argument('--xpc-port',      type=int, default=49009,
-                    help='XPlaneConnect plugin port (default: 49009)')
-    ap.add_argument('--xpc-timeout',   type=int, default=2000,
-                    help='XPC socket timeout ms (default: 2000)')
+                    help='Also send control surface DREFs to X-Plane via native UDP')
+    ap.add_argument('--xplane-host',   default='127.0.0.1')
+    ap.add_argument('--xplane-port',   type=int, default=49000,
+                    help='X-Plane DREF UDP port (default: 49000)')
     ap.add_argument('--list',          action='store_true',
                     help='List joysticks and exit')
     ap.add_argument('--no-mavlink',    action='store_true',
@@ -136,22 +130,22 @@ def main():
     roll_ax, pitch_ax, thr_ax, yaw_ax, mode_ax = args.axes
     invert_set = set(args.invert)
 
-    # ── XPlaneConnect client ──────────────────────────────────────────────────
-    xp_client = None
+    # ── X-Plane native UDP socket ─────────────────────────────────────────────
+    xp_sock = None
+    xp_addr = (args.xplane_host, args.xplane_port)
     if args.xplane:
-        if not _XPC:
-            print('[XP]  xpc not installed — run: pip3 install xplane-connect')
-        else:
-            xp_client = xpc.XPlaneConnect(xpHost=args.xpc_host, xpPort=args.xpc_port,
-                                          timeout=args.xpc_timeout)
-            try:
-                posi = xp_client.getPOSI()
-                print(f'[XP]  connected → {args.xpc_host}:{args.xpc_port}  '
-                      f'lat={posi[0]:.4f}  lon={posi[1]:.4f}  alt={posi[2]:.1f} m')
-            except Exception as e:
-                print(f'[XP]  ERROR — {e}')
-                print('[XP]  Is XPlaneConnect plugin installed and X-Plane unpaused?')
-                xp_client = None
+        xp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        for dref, val in [
+            ('sim/operation/override/override_control_surfaces', 1.0),
+            ('sim/operation/override/override_throttles',        1.0),
+        ]:
+            name_b = dref.encode()
+            xp_sock.sendto(
+                b'DREF\x00' + struct.pack('<f', val) +
+                name_b + b'\x00' * (500 - len(name_b)),
+                xp_addr,
+            )
+        print(f'[XP]  overrides SET (control_surfaces + throttles) → {xp_addr}')
 
     # ── MAVLink ───────────────────────────────────────────────────────────────
     mav = None
@@ -214,17 +208,25 @@ def main():
                         0,   # buttons
                     )
 
-            # ── X-Plane aileron / elevator / throttle via XPC ────────────────
-            if xp_client and changed:
-                ail_r     = (ch1 - 1500) / 500.0
-                elev_r    = (ch2 - 1500) / 500.0
-                thr_ratio = max(0.0, min(1.0, (ch3 - 1000) / 1000.0))
-                xp_client.sendDREFs(
-                    ['sim/flightmodel/controls/ailn_rat',
-                     'sim/flightmodel/controls/elv_rat',
-                     'sim/cockpit2/engine/actuators/throttle_ratio[0]'],
-                    [ail_r, -elev_r, thr_ratio],
-                )
+            # ── X-Plane control surfaces via native UDP ───────────────────────
+            if xp_sock and changed:
+                def _dref(name, value):
+                    nb = name.encode()
+                    xp_sock.sendto(
+                        b'DREF\x00' + struct.pack('<f', value) +
+                        nb + b'\x00' * (500 - len(nb)),
+                        xp_addr,
+                    )
+                ail_deg  = 20.0 * (ch1 - 1500) / 500.0
+                elev_deg = 20.0 * (ch2 - 1500) / 500.0
+                thr      = max(0.0, min(1.0, (ch3 - 1000) / 1000.0))
+                rud_deg  = 20.0 * (ch4 - 1500) / 500.0
+                _dref('sim/flightmodel/controls/wing1l_ail1def',  ail_deg)
+                _dref('sim/flightmodel/controls/wing1r_ail1def', -ail_deg)
+                _dref('sim/flightmodel/controls/hstab1_elv1def',  elev_deg)
+                _dref('sim/flightmodel/controls/hstab2_elv1def',  elev_deg)
+                _dref('sim/flightmodel/engine/ENGN_thro[0]',      thr)
+                _dref('sim/flightmodel/controls/vstab1_rudd1def', rud_deg)
 
             # ── terminal display ──────────────────────────────────────────────
             if now - last_print >= 0.1:

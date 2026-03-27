@@ -70,6 +70,7 @@ public:
 #if MODE_AUTOLAND_ENABLED
         AUTOLAND      = 26,
 #endif
+        TRACKING      = 27,
 
     // Mode number 30 reserved for "offboard" for external/lua control.
     };
@@ -1073,3 +1074,38 @@ protected:
 };
 
 #endif
+
+/*
+  TRACKING mode — visual-servo / seeker-head tracking.
+  Receives (errorx, errory) in radians via LANDING_TARGET MAVLink message:
+    errorx > 0  → target is to the right  → roll right
+    errory > 0  → target is above          → pitch setpoint increases (nose up)
+  Throttle is held constant at TRIM_THROTTLE.
+*/
+class ModeTracking : public Mode
+{
+public:
+
+    Number mode_number() const override { return Number::TRACKING; }
+    const char *name()   const override { return "TRACKING"; }
+    const char *name4()  const override { return "TRAK"; }
+
+    void update() override;
+
+    bool does_auto_navigation() const override { return true; }
+
+    // Called from GCS_MAVLink_Plane when a LANDING_TARGET message arrives
+    void handle_tracking_error(float errorx_rad, float errory_rad);
+
+protected:
+
+    bool _enter() override;
+    void _exit() override;
+
+private:
+
+    float    _errorx_rad;         // horizontal tracking error (+ = right)
+    float    _errory_rad;         // vertical tracking error   (+ = above)
+    uint32_t _last_msg_ms;        // timestamp of last TRACKING message
+    uint32_t _prev_update_ms;     // for dt computation in update()
+};

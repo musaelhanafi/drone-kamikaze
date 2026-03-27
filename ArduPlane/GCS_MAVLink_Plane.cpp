@@ -57,6 +57,7 @@ uint8_t GCS_MAVLINK_Plane::base_mode() const
     case Mode::Number::THERMAL:
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:
+    case Mode::Number::TRACKING:
     case Mode::Number::CIRCLE:
     case Mode::Number::TAKEOFF:
 #if MODE_AUTOLAND_ENABLED
@@ -1028,11 +1029,37 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
         handle_set_position_target_global_int(msg);
         break;
 
+    case MAVLINK_MSG_ID_TRACKING:
+        handle_tracking_message(msg);
+        break;
+
     default:
         GCS_MAVLINK::handle_message(msg);
         break;
     } // end switch
 } // end handle mavlink
+
+/*
+  Handle TRACKING message for TRACKING mode.
+  errorx/errory are normalised in [-1, 1]; converted to radians here
+  using TRACKING_MAX_DELTA_RAD (3 degrees).
+  Only accepted when the vehicle is in TRACKING mode.
+*/
+static constexpr float TRACKING_MAX_DELTA_RAD = 3.0f * (M_PI / 180.0f);
+
+void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
+{
+    if (plane.control_mode != &plane.mode_tracking) {
+        return;
+    }
+
+    mavlink_tracking_t tgt;
+    mavlink_msg_tracking_decode(&msg, &tgt);
+
+    plane.mode_tracking.handle_tracking_error(
+        tgt.errorx * TRACKING_MAX_DELTA_RAD,
+        tgt.errory * TRACKING_MAX_DELTA_RAD);
+}
 
 void GCS_MAVLINK_Plane::handle_set_attitude_target(const mavlink_message_t &msg)
     {

@@ -1279,6 +1279,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("GUIDED_TIMEOUT", 40, ParametersG2, guided_timeout, 3.0f),
 
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_roll_pid,  "TRAK_ROLL_", 42, ParametersG2, AC_PID),
+
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_pitch_pid, "TRAK_PTCH_", 43, ParametersG2, AC_PID),
+
 #if AP_RANGEFINDER_ENABLED
     // @Param: RNGFND_LND_DIST
     // @DisplayName: Rangefinder landing engagement distance

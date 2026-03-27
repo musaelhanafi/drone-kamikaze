@@ -568,6 +568,12 @@ public:
     AC_PID guidedHeading{5000.0,  0.0,   0.0, 0 ,  10.0,   5.0,  5.0 ,  5.0  , 0.0};
 #endif
 
+    // Tracking mode PID controllers (error input in degrees, output in centidegrees)
+    // Roll  defaults: P=200 cd/deg, I=10, D=5,   imax=3000 cd (30 deg)
+    // Pitch defaults: P=100 cd/deg, I=500, D=0,  imax=3000 cd (30 deg)
+    AC_PID tracking_roll_pid {200.0f, 10.0f,  5.0f, 0.0f, 3000.0f, 0.0f, 0.0f, 20.0f, 0.0f};
+    AC_PID tracking_pitch_pid{100.0f, 500.0f, 0.0f, 0.0f, 3000.0f, 0.0f, 0.0f, 20.0f, 0.0f};
+
     AP_Float guided_timeout;
 
 #if AP_SCRIPTING_ENABLED && AP_FOLLOW_ENABLED

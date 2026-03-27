@@ -1,0 +1,26 @@
+# Servo output functions for conventional plane (fmuv3-hil-plane + xplane_plane.json)
+# CH1 = aileron (pure, unmixed) → yoke_roll_ratio
+# CH2 = elevator               → yoke_pitch_ratio
+# CH3 = throttle               → ENGN_thro_use[0]
+# CH4 = rudder                 → yoke_heading_ratio
+
+SERVO1_FUNCTION       4      # Aileron (not 77 Elevon Left — must be unmixed)
+SERVO2_FUNCTION      19      # Elevator
+SERVO3_FUNCTION      70      # Throttle
+SERVO4_FUNCTION      21      # Rudder
+SERVO1_MIN         1000
+SERVO1_MAX         2000
+SERVO1_TRIM        1500
+SERVO1_REVERSED       0
+SERVO2_MIN         1000
+SERVO2_MAX         2000
+SERVO2_TRIM        1500
+SERVO2_REVERSED       0
+SERVO3_MIN         1000
+SERVO3_MAX         2000
+SERVO3_TRIM        1000
+SERVO3_REVERSED       0
+SERVO4_MIN         1000
+SERVO4_MAX         2000
+SERVO4_TRIM        1500
+SERVO4_REVERSED       0

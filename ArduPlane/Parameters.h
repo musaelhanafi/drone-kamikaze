@@ -573,6 +573,9 @@ public:
     // Pitch defaults: P=100 cd/deg, I=500, D=0,  imax=3000 cd (30 deg)
     AC_PID tracking_roll_pid {200.0f, 10.0f,  5.0f, 0.0f, 3000.0f, 0.0f, 0.0f, 20.0f, 0.0f};
     AC_PID tracking_pitch_pid{100.0f, 500.0f, 0.0f, 0.0f, 3000.0f, 0.0f, 0.0f, 20.0f, 0.0f};
+    AP_Float tracking_max_deg;       // TRACKING_MAX_DEG:  max roll/pitch delta from a full-scale error (deg)
+    AP_Float tracking_deadband_deg;  // TRACKING_DBAND: ignore errors smaller than this (deg)
+    AP_Int16 tracking_timeout_ms;    // TRACKING_TIMEOUT:  signal loss timeout (ms)
 
     AP_Float guided_timeout;
 

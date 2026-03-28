@@ -189,6 +189,20 @@ Key values:
 | `TKOFF_THR_MINSPD` | 0 | No GPS speed check before throttle-up |
 | `GROUND_STEER_ALT` | 5 | Ground steering active below 5 m AGL |
 
+### TRACKING parameters
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `TRACKING_ROLL_P` | 200 | cd per degree of horizontal error |
+| `TRACKING_ROLL_I` | 10 | roll integral |
+| `TRACKING_ROLL_D` | 5 | roll derivative |
+| `TRACKING_PTCH_P` | 100 | cd per degree of vertical error |
+| `TRACKING_PTCH_I` | 500 | pitch integral |
+| `TRACKING_PTCH_D` | 0 | pitch derivative |
+| `TRACKING_MAX_DEG` | 3.0 | max roll/pitch delta at full-scale error ±1 (deg) |
+| `TRACKING_DBAND` | 0.573 | error deadband before PID (deg, ~0.01 rad) |
+| `TRACKING_TIMEOUT` | 1000 | signal loss timeout before holding level (ms) |
+
 ### DREF mapping (xplane_plane.json)
 
 The firmware embeds `xplane_plane.json` which maps servo channels to X-Plane

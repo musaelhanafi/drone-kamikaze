@@ -11,11 +11,11 @@
   radians by GCS_MAVLink_Plane before being passed here.
 
   Roll control  (PID on errorx → nav_roll_cd):
-    Tunable via parameters TRAK_ROLL_P / _I / _D / _IMAX
+    Tunable via parameters TRACKING_ROLL_P / _I / _D / _IMAX
     Default: P=200 cd/deg, I=10, D=5, imax=3000 cd
 
   Pitch control (PID on errory → nav_pitch_cd):
-    Tunable via parameters TRAK_PTCH_P / _I / _D / _IMAX
+    Tunable via parameters TRACKING_PTCH_P / _I / _D / _IMAX
     Default: P=100 cd/deg, I=500, D=0, imax=3000 cd
 
   Throttle: constant TRIM_THROTTLE percent.
@@ -24,11 +24,6 @@
             signal returns).
 */
 
-// Deadband: ignore errors smaller than this (radians, ~0.6 deg)
-static constexpr float    TRACKING_DEADBAND_RAD = 0.01f;
-
-// Signal timeout
-static constexpr uint32_t TRACKING_TIMEOUT_MS   = 1000;
 
 
 // ── _enter ────────────────────────────────────────────────────────────────────
@@ -77,8 +72,9 @@ void ModeTracking::update()
                                             0.001f, 0.5f);
     _prev_update_ms = now_ms;
 
+    const uint32_t timeout_ms = (uint32_t)plane.g2.tracking_timeout_ms.get();
     const bool timed_out = (_last_msg_ms == 0) ||
-                           (now_ms - _last_msg_ms > TRACKING_TIMEOUT_MS);
+                           (now_ms - _last_msg_ms > timeout_ms);
 
     if (timed_out) {
         // No recent tracking signal: hold wings level, reset PIDs so there
@@ -88,10 +84,12 @@ void ModeTracking::update()
         plane.nav_roll_cd  = 0;
         plane.nav_pitch_cd = 0;
     } else {
+        const float deadband_rad = plane.g2.tracking_deadband_deg.get() * (M_PI / 180.0f);
+
         // ── Roll PID ─────────────────────────────────────────────────────────
         // errorx > 0 → target is to the right → roll right (positive bank).
         // Deadband applied before the PID to avoid integrator wind-up near zero.
-        const float ex       = fabsf(_errorx_rad) > TRACKING_DEADBAND_RAD ? _errorx_rad : 0.0f;
+        const float ex       = fabsf(_errorx_rad) > deadband_rad ? _errorx_rad : 0.0f;
         const float roll_cd  = plane.g2.tracking_roll_pid.update_error(degrees(ex), dt_s);
         plane.nav_roll_cd    = constrain_int32((int32_t)roll_cd,
                                                -plane.roll_limit_cd,
@@ -99,7 +97,7 @@ void ModeTracking::update()
 
         // ── Pitch PID ────────────────────────────────────────────────────────
         // errory > 0 → target is above → pitch up (positive setpoint).
-        const float ey       = fabsf(_errory_rad) > TRACKING_DEADBAND_RAD ? _errory_rad : 0.0f;
+        const float ey       = fabsf(_errory_rad) > deadband_rad ? _errory_rad : 0.0f;
         const float pitch_cd = plane.g2.tracking_pitch_pid.update_error(degrees(ey), dt_s);
         plane.nav_pitch_cd   = constrain_int32((int32_t)pitch_cd,
                                                (int32_t)(plane.pitch_limit_min * 100),

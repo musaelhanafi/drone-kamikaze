@@ -315,16 +315,19 @@ firmware dan diterapkan otomatis pada EEPROM bersih.
 > Tidak ada `SCHED_LOOP_RATE` limit — x86 dapat menjalankan scheduler di 400 Hz.
 > Tidak ada PPP/NET — XPlane backend menggunakan UDP socket langsung.
 
-### TRAK PID Parameters (TRACKING mode)
+### TRACKING Parameters
 
 | Parameter | Default | Keterangan |
 |-----------|---------|-----------|
-| `TRAK_ROLL_P` | 200 | cd per derajat error horizontal |
-| `TRAK_ROLL_I` | 10 | integral roll |
-| `TRAK_ROLL_D` | 5 | derivative roll |
-| `TRAK_PTCH_P` | 100 | cd per derajat error vertikal |
-| `TRAK_PTCH_I` | 500 | integral pitch |
-| `TRAK_PTCH_D` | 0 | derivative pitch |
+| `TRACKING_ROLL_P` | 200 | cd per derajat error horizontal |
+| `TRACKING_ROLL_I` | 10 | integral roll |
+| `TRACKING_ROLL_D` | 5 | derivative roll |
+| `TRACKING_PTCH_P` | 100 | cd per derajat error vertikal |
+| `TRACKING_PTCH_I` | 500 | integral pitch |
+| `TRACKING_PTCH_D` | 0 | derivative pitch |
+| `TRACKING_MAX_DEG` | 3.0 | maksimum delta roll/pitch saat error ±1 (derajat) |
+| `TRACKING_DBAND` | 0.573 | deadband error sebelum masuk PID (derajat, ~0.01 rad) |
+| `TRACKING_TIMEOUT` | 1000 | timeout sinyal tracking sebelum hold level (ms) |
 
 ### DREF Mapping (`xplane_elevon.json`)
 

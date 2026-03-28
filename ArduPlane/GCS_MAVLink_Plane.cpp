@@ -1050,8 +1050,6 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
   using TRACKING_MAX_DELTA_RAD (3 degrees).
   Only accepted when the vehicle is in TRACKING mode.
 */
-static constexpr float TRACKING_MAX_DELTA_RAD = 3.0f * (M_PI / 180.0f);
-
 void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
 {
     if (plane.control_mode != &plane.mode_tracking) {
@@ -1063,9 +1061,10 @@ void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
     memcpy(&errorx, &msg.payload64[0],                sizeof(float));
     memcpy(&errory, (const uint8_t*)&msg.payload64[0] + sizeof(float), sizeof(float));
 
+    const float max_rad = plane.g2.tracking_max_deg.get() * (M_PI / 180.0f);
     plane.mode_tracking.handle_tracking_error(
-        errorx * TRACKING_MAX_DELTA_RAD,
-        errory * TRACKING_MAX_DELTA_RAD);
+        errorx * max_rad,
+        errory * max_rad);
 }
 
 void GCS_MAVLINK_Plane::handle_set_attitude_target(const mavlink_message_t &msg)

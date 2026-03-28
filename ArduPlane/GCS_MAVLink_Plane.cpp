@@ -1,6 +1,11 @@
 #include "GCS_MAVLink_Plane.h"
 
 #include "Plane.h"
+
+// Custom MAVLink message ID for TRACKING (errorx/errory from seeker)
+#ifndef MAVLINK_MSG_ID_TRACKING
+#define MAVLINK_MSG_ID_TRACKING 230
+#endif
 #include <AP_RPM/AP_RPM_config.h>
 #include <AP_Airspeed/AP_Airspeed_config.h>
 #include <AP_EFI/AP_EFI_config.h>
@@ -1053,12 +1058,14 @@ void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
         return;
     }
 
-    mavlink_tracking_t tgt;
-    mavlink_msg_tracking_decode(&msg, &tgt);
+    // Payload: two little-endian floats [errorx, errory]
+    float errorx, errory;
+    memcpy(&errorx, &msg.payload64[0],                sizeof(float));
+    memcpy(&errory, (const uint8_t*)&msg.payload64[0] + sizeof(float), sizeof(float));
 
     plane.mode_tracking.handle_tracking_error(
-        tgt.errorx * TRACKING_MAX_DELTA_RAD,
-        tgt.errory * TRACKING_MAX_DELTA_RAD);
+        errorx * TRACKING_MAX_DELTA_RAD,
+        errory * TRACKING_MAX_DELTA_RAD);
 }
 
 void GCS_MAVLINK_Plane::handle_set_attitude_target(const mavlink_message_t &msg)

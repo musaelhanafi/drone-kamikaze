@@ -1280,19 +1280,19 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPINFO("GUIDED_TIMEOUT", 40, ParametersG2, guided_timeout, 3.0f),
 
     // @Path: ../libraries/AC_PID/AC_PID.cpp
-    AP_SUBGROUPINFO(tracking_roll_pid,  "TRACKING_ROLL_", 42, ParametersG2, AC_PID),
+    AP_SUBGROUPINFO(tracking_roll_pid,  "TRAK_ROLL_", 42, ParametersG2, AC_PID),
 
     // @Path: ../libraries/AC_PID/AC_PID.cpp
-    AP_SUBGROUPINFO(tracking_pitch_pid, "TRACKING_PTCH_", 43, ParametersG2, AC_PID),
+    AP_SUBGROUPINFO(tracking_pitch_pid, "TRAK_PTCH_", 43, ParametersG2, AC_PID),
 
     // @Param: TRACKING_MAX_DEG
     // @DisplayName: Tracking mode max delta angle
     // @Description: Maximum roll/pitch angle commanded when errorx/errory is at full scale (±1). The normalised tracking error is multiplied by this value before being passed to the PID controllers.
     // @Units: deg
-    // @Range: 1 45
+    // @Range: 1 90
     // @Increment: 0.5
     // @User: Standard
-    AP_GROUPINFO("TRACKING_MAX_DEG", 44, ParametersG2, tracking_max_deg, 3.0f),
+    AP_GROUPINFO("TRACKING_MAX_DEG", 44, ParametersG2, tracking_max_deg, 45.0f),
 
     // @Param: TRACKING_DBAND
     // @DisplayName: Tracking mode error deadband

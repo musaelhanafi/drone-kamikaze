@@ -11,11 +11,11 @@
   radians by GCS_MAVLink_Plane before being passed here.
 
   Roll control  (PID on errorx → nav_roll_cd):
-    Tunable via parameters TRACKING_ROLL_P / _I / _D / _IMAX
+    Tunable via parameters TRAK_ROLL_P / _I / _D / _IMAX
     Default: P=200 cd/deg, I=10, D=5, imax=3000 cd
 
   Pitch control (PID on errory → nav_pitch_cd):
-    Tunable via parameters TRACKING_PTCH_P / _I / _D / _IMAX
+    Tunable via parameters TRAK_PTCH_P / _I / _D / _IMAX
     Default: P=100 cd/deg, I=500, D=0, imax=3000 cd
 
   Throttle: constant TRIM_THROTTLE percent.
@@ -33,6 +33,7 @@ bool ModeTracking::_enter()
     _errory_rad     = 0.0f;
     _last_msg_ms    = 0;
     _prev_update_ms = AP_HAL::millis();
+    _last_debug_ms  = 0;
 
     plane.g2.tracking_roll_pid.reset_I();
     plane.g2.tracking_roll_pid.reset_filter();
@@ -48,7 +49,9 @@ bool ModeTracking::_enter()
 void ModeTracking::_exit()
 {
     plane.g2.tracking_roll_pid.reset_I();
+    plane.g2.tracking_roll_pid.reset_filter();
     plane.g2.tracking_pitch_pid.reset_I();
+    plane.g2.tracking_pitch_pid.reset_filter();
     gcs().send_text(MAV_SEVERITY_INFO, "Tracking: exit");
 }
 
@@ -88,8 +91,11 @@ void ModeTracking::update()
 
         // ── Roll PID ─────────────────────────────────────────────────────────
         // errorx > 0 → target is to the right → roll right (positive bank).
-        // Deadband applied before the PID to avoid integrator wind-up near zero.
-        const float ex       = fabsf(_errorx_rad) > deadband_rad ? _errorx_rad : 0.0f;
+        // Reset I when inside deadband to prevent integrator wind-up.
+        const float ex = fabsf(_errorx_rad) > deadband_rad ? _errorx_rad : 0.0f;
+        if (ex == 0.0f) {
+            plane.g2.tracking_roll_pid.reset_I();
+        }
         const float roll_cd  = plane.g2.tracking_roll_pid.update_error(degrees(ex), dt_s);
         plane.nav_roll_cd    = constrain_int32((int32_t)roll_cd,
                                                -plane.roll_limit_cd,
@@ -97,7 +103,11 @@ void ModeTracking::update()
 
         // ── Pitch PID ────────────────────────────────────────────────────────
         // errory > 0 → target is above → pitch up (positive setpoint).
-        const float ey       = fabsf(_errory_rad) > deadband_rad ? _errory_rad : 0.0f;
+        // Reset I when inside deadband to prevent integrator wind-up.
+        const float ey = fabsf(_errory_rad) > deadband_rad ? _errory_rad : 0.0f;
+        if (ey == 0.0f) {
+            plane.g2.tracking_pitch_pid.reset_I();
+        }
         const float pitch_cd = plane.g2.tracking_pitch_pid.update_error(degrees(ey), dt_s);
         plane.nav_pitch_cd   = constrain_int32((int32_t)pitch_cd,
                                                (int32_t)(plane.pitch_limit_min * 100),
@@ -109,4 +119,17 @@ void ModeTracking::update()
     // ── Constant throttle ────────────────────────────────────────────────────
     SRV_Channels::set_output_scaled(SRV_Channel::k_throttle,
                                     plane.aparm.throttle_cruise.get());
+
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // ── Debug: print servo 1-4 raw PWM at 10 Hz ──────────────────────────────
+    if (now_ms - _last_debug_ms >= 100) {
+        _last_debug_ms = now_ms;
+        ::printf("[TRAK] srv1=%u srv2=%u srv3=%u srv4=%u  ex=%.3f ey=%.3f\n",
+            (unsigned)hal.rcout->read(0),
+            (unsigned)hal.rcout->read(1),
+            (unsigned)hal.rcout->read(2),
+            (unsigned)hal.rcout->read(3),
+            (double)_errorx_rad, (double)_errory_rad);
+    }
+#endif
 }

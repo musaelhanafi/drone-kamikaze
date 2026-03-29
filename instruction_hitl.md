@@ -193,12 +193,12 @@ Key values:
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `TRACKING_ROLL_P` | 200 | cd per degree of horizontal error |
-| `TRACKING_ROLL_I` | 10 | roll integral |
-| `TRACKING_ROLL_D` | 5 | roll derivative |
-| `TRACKING_PTCH_P` | 100 | cd per degree of vertical error |
-| `TRACKING_PTCH_I` | 500 | pitch integral |
-| `TRACKING_PTCH_D` | 0 | pitch derivative |
+| `TRAK_ROLL_P` | 200 | cd per degree of horizontal error |
+| `TRAK_ROLL_I` | 10 | roll integral |
+| `TRAK_ROLL_D` | 5 | roll derivative |
+| `TRAK_PTCH_P` | 100 | cd per degree of vertical error |
+| `TRAK_PTCH_I` | 500 | pitch integral |
+| `TRAK_PTCH_D` | 0 | pitch derivative |
 | `TRACKING_MAX_DEG` | 3.0 | max roll/pitch delta at full-scale error ±1 (deg) |
 | `TRACKING_DBAND` | 0.573 | error deadband before PID (deg, ~0.01 rad) |
 | `TRACKING_TIMEOUT` | 1000 | signal loss timeout before holding level (ms) |

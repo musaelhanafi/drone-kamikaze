@@ -168,13 +168,13 @@ Buka terminal baru di **Laptop B**, ganti `192.168.1.x` dengan IP Laptop A:
 ```bash
 cd /path/to/drone-kamikaze
 
-./build/x86-hil/bin/arduplane --model xplane:192.168.1.x --serial0 tcp:0
+./build/x86-hil/bin/arduplane --model xplane:192.168.1.x --serial0 tcp:0 --home -6.897434,107.566887,744,108
 ```
 
 **Contoh nyata** jika IP Laptop A adalah `192.168.1.5`:
 
 ```bash
-./build/x86-hil/bin/arduplane --model xplane:192.168.1.5 --serial0 tcp:0
+./build/x86-hil/bin/arduplane --model xplane:192.168.1.5 --serial0 tcp:0 --home -6.897434,107.566887,744,108
 ```
 
 ### 3.3 — Penjelasan flag
@@ -186,6 +186,8 @@ cd /path/to/drone-kamikaze
 | | | ArduPlane listen DATA@ dari X-Plane di UDP `49001` |
 | `--serial0` | `tcp:0` | Buka MAVLink TCP server di port `5760` |
 | | | MAVProxy dan QGC connect ke port ini |
+| `--home` | `lat,lon,alt,heading` | Set home / EKF origin; format derajat desimal, altitude MSL (m), heading (°) |
+| | `-6.897434,107.566887,744,108` | Lokasi default proyek ini (Bandung, 744 m AMSL, heading utara) |
 
 ### 3.4 — Output yang diharapkan
 
@@ -319,12 +321,12 @@ firmware dan diterapkan otomatis pada EEPROM bersih.
 
 | Parameter | Default | Keterangan |
 |-----------|---------|-----------|
-| `TRACKING_ROLL_P` | 200 | cd per derajat error horizontal |
-| `TRACKING_ROLL_I` | 10 | integral roll |
-| `TRACKING_ROLL_D` | 5 | derivative roll |
-| `TRACKING_PTCH_P` | 100 | cd per derajat error vertikal |
-| `TRACKING_PTCH_I` | 500 | integral pitch |
-| `TRACKING_PTCH_D` | 0 | derivative pitch |
+| `TRAK_ROLL_P` | 200 | cd per derajat error horizontal |
+| `TRAK_ROLL_I` | 10 | integral roll |
+| `TRAK_ROLL_D` | 5 | derivative roll |
+| `TRAK_PTCH_P` | 100 | cd per derajat error vertikal |
+| `TRAK_PTCH_I` | 500 | integral pitch |
+| `TRAK_PTCH_D` | 0 | derivative pitch |
 | `TRACKING_MAX_DEG` | 3.0 | maksimum delta roll/pitch saat error ±1 (derajat) |
 | `TRACKING_DBAND` | 0.573 | deadband error sebelum masuk PID (derajat, ~0.01 rad) |
 | `TRACKING_TIMEOUT` | 1000 | timeout sinyal tracking sebelum hold level (ms) |

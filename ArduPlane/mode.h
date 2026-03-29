@@ -1108,4 +1108,5 @@ private:
     float    _errory_rad;         // vertical tracking error   (+ = above)
     uint32_t _last_msg_ms;        // timestamp of last TRACKING message
     uint32_t _prev_update_ms;     // for dt computation in update()
+    uint32_t _last_debug_ms;      // rate-limit debug servo prints
 };

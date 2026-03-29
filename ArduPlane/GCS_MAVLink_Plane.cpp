@@ -2,10 +2,6 @@
 
 #include "Plane.h"
 
-// Custom MAVLink message ID for TRACKING (errorx/errory from seeker)
-#ifndef MAVLINK_MSG_ID_TRACKING
-#define MAVLINK_MSG_ID_TRACKING 230
-#endif
 #include <AP_RPM/AP_RPM_config.h>
 #include <AP_Airspeed/AP_Airspeed_config.h>
 #include <AP_EFI/AP_EFI_config.h>
@@ -1034,7 +1030,7 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
         handle_set_position_target_global_int(msg);
         break;
 
-    case MAVLINK_MSG_ID_TRACKING:
+    case MAVLINK_MSG_ID_DEBUG_VECT:
         handle_tracking_message(msg);
         break;
 
@@ -1045,26 +1041,23 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
 } // end handle mavlink
 
 /*
-  Handle TRACKING message for TRACKING mode.
-  errorx/errory are normalised in [-1, 1]; converted to radians here
-  using TRACKING_MAX_DELTA_RAD (3 degrees).
-  Only accepted when the vehicle is in TRACKING mode.
+  Handle DEBUG_VECT message for TRACKING mode.
+  x = errorx, y = errory, normalised in [-1, 1].
+  Converted to radians using TRACKING_MAX_DEG before passing to the PID.
 */
 void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
 {
+    mavlink_debug_vect_t pkt;
+    mavlink_msg_debug_vect_decode(&msg, &pkt);
+
     if (plane.control_mode != &plane.mode_tracking) {
         return;
     }
 
-    // Payload: two little-endian floats [errorx, errory]
-    float errorx, errory;
-    memcpy(&errorx, &msg.payload64[0],                sizeof(float));
-    memcpy(&errory, (const uint8_t*)&msg.payload64[0] + sizeof(float), sizeof(float));
-
     const float max_rad = plane.g2.tracking_max_deg.get() * (M_PI / 180.0f);
     plane.mode_tracking.handle_tracking_error(
-        errorx * max_rad,
-        errory * max_rad);
+        pkt.x * max_rad,
+        pkt.y * max_rad);
 }
 
 void GCS_MAVLINK_Plane::handle_set_attitude_target(const mavlink_message_t &msg)

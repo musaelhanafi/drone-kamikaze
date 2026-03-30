@@ -358,6 +358,15 @@ void GCS_MAVLINK_Plane::send_pid_tuning()
         return;
     }
 
+    // In TRACKING mode stream the custom tracking PIDs on the standard
+    // roll (axis 1) and pitch (axis 2) slots so ground-station PID tools
+    // and seekerctrl.py can read them without extra message types.
+    if (plane.control_mode == &plane.mode_tracking) {
+        send_pid_info(&plane.g2.tracking_roll_pid.get_pid_info(),  PID_TUNING_ROLL,  0.0f);
+        send_pid_info(&plane.g2.tracking_pitch_pid.get_pid_info(), PID_TUNING_PITCH, 0.0f);
+        return;
+    }
+
     const Parameters &g = plane.g;
 
     const AP_PIDInfo *pid_info;

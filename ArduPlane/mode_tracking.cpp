@@ -33,6 +33,7 @@ bool ModeTracking::_enter()
     _errory_rad     = 0.0f;
     _last_msg_ms    = 0;
     _prev_update_ms = AP_HAL::millis();
+    _was_timed_out  = false;
     plane.g2.tracking_roll_pid.reset_I();
     plane.g2.tracking_roll_pid.reset_filter();
     plane.g2.tracking_pitch_pid.reset_I();
@@ -82,10 +83,17 @@ void ModeTracking::update()
     if (timed_out) {
         // No recent tracking signal: freeze nav_roll_cd / nav_pitch_cd at
         // their last commanded values so the aircraft holds its last attitude.
-        // Reset integrators to prevent wind-up while the signal is absent.
-        plane.g2.tracking_roll_pid.reset_I();
-        plane.g2.tracking_pitch_pid.reset_I();
+        if (!_was_timed_out) {
+            // First cycle of timeout: flush integrators AND derivative filters
+            // to prevent wind-up and stale derivative carry-over.
+            plane.g2.tracking_roll_pid.reset_I();
+            plane.g2.tracking_roll_pid.reset_filter();
+            plane.g2.tracking_pitch_pid.reset_I();
+            plane.g2.tracking_pitch_pid.reset_filter();
+        }
+        _was_timed_out = true;
     } else {
+        _was_timed_out = false;
         const float deadband_rad = plane.g2.tracking_deadband_deg.get() * (M_PI / 180.0f);
 
         // ── Roll PID ─────────────────────────────────────────────────────────
@@ -105,7 +113,7 @@ void ModeTracking::update()
                                                 -plane.roll_limit_cd,
                                                  plane.roll_limit_cd);
         } else {
-            const float roll_cd = plane.g2.tracking_roll_pid.update_error(degrees(ex), dt_s);
+            const float roll_cd = plane.g2.tracking_roll_pid.update_all(degrees(ex), 0.0f, dt_s);
             plane.nav_roll_cd   = constrain_int32((int32_t)roll_cd,
                                                   -plane.roll_limit_cd,
                                                    plane.roll_limit_cd);
@@ -122,7 +130,7 @@ void ModeTracking::update()
         if (ey_raw == 0.0f) {
             plane.g2.tracking_pitch_pid.reset_I();
         }
-        const float pitch_cd = plane.g2.tracking_pitch_pid.update_error(degrees(ey), dt_s);
+        const float pitch_cd = plane.g2.tracking_pitch_pid.update_all(degrees(ey), 0.0f, dt_s);
         plane.nav_pitch_cd   = constrain_int32((int32_t)pitch_cd,
                                                (int32_t)(plane.pitch_limit_min * 100),
                                                plane.aparm.pitch_limit_max.get() * 100);
@@ -131,12 +139,17 @@ void ModeTracking::update()
     plane.update_load_factor();
 
     // ── Throttle ─────────────────────────────────────────────────────────────
-    // When errorx is outside the deadband the aircraft is banking to chase the
-    // target; reduce to half TRIM_THROTTLE so speed stays manageable during
-    // the turn.  In the deadband (or on timeout) use the full cruise throttle.
-    const float throttle = ex_in_deadband
+    // Three regimes:
+    //   banking to chase laterally  → half TRIM_THROTTLE (avoid overspeed in turn)
+    //   diving (nav_pitch_cd < -500) → cut throttle further to avoid overspeed
+    //   straight/deadband           → full TRIM_THROTTLE
+    const bool diving = (plane.nav_pitch_cd < -500);  // nose down > 5 deg
+    float throttle = ex_in_deadband
         ? plane.aparm.throttle_cruise.get()
         : plane.aparm.throttle_cruise.get() * 0.5f;
+    if (diving) {
+        throttle *= 0.5f;   // halve again when pitched into a dive
+    }
     SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, throttle);
 
 }

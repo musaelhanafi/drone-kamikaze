@@ -11,11 +11,11 @@
   radians by GCS_MAVLink_Plane before being passed here.
 
   Roll control  (PID on errorx → nav_roll_cd):
-    Tunable via parameters TRAK_ROLL_P / _I / _D / _IMAX
+    Tunable via parameters TRK_ROLL_P / _I / _D / _IMAX
     Default: P=200 cd/deg, I=10, D=5, imax=3000 cd
 
   Pitch control (PID on errory → nav_pitch_cd):
-    Tunable via parameters TRAK_PTCH_P / _I / _D / _IMAX
+    Tunable via parameters TRK_PTCH_P / _I / _D / _IMAX
     Default: P=100 cd/deg, I=500, D=0, imax=3000 cd
 
   Throttle: constant TRIM_THROTTLE percent.
@@ -33,8 +33,6 @@ bool ModeTracking::_enter()
     _errory_rad     = 0.0f;
     _last_msg_ms    = 0;
     _prev_update_ms = AP_HAL::millis();
-    _last_debug_ms  = 0;
-
     plane.g2.tracking_roll_pid.reset_I();
     plane.g2.tracking_roll_pid.reset_filter();
     plane.g2.tracking_pitch_pid.reset_I();
@@ -79,13 +77,14 @@ void ModeTracking::update()
     const bool timed_out = (_last_msg_ms == 0) ||
                            (now_ms - _last_msg_ms > timeout_ms);
 
+    bool ex_in_deadband = true;   // default: treat as centred when timed out
+
     if (timed_out) {
-        // No recent tracking signal: hold wings level, reset PIDs so there
-        // is no integrator wind-up while the signal is absent.
+        // No recent tracking signal: freeze nav_roll_cd / nav_pitch_cd at
+        // their last commanded values so the aircraft holds its last attitude.
+        // Reset integrators to prevent wind-up while the signal is absent.
         plane.g2.tracking_roll_pid.reset_I();
         plane.g2.tracking_pitch_pid.reset_I();
-        plane.nav_roll_cd  = 0;
-        plane.nav_pitch_cd = 0;
     } else {
         const float deadband_rad = plane.g2.tracking_deadband_deg.get() * (M_PI / 180.0f);
 
@@ -93,19 +92,34 @@ void ModeTracking::update()
         // errorx > 0 → target is to the right → roll right (positive bank).
         // Reset I when inside deadband to prevent integrator wind-up.
         const float ex = fabsf(_errorx_rad) > deadband_rad ? _errorx_rad : 0.0f;
+        ex_in_deadband = (ex == 0.0f);
         if (ex == 0.0f) {
             plane.g2.tracking_roll_pid.reset_I();
+            // In deadband: use gyro roll rate to actively damp any rolling
+            // motion and drive toward wings-level.  Each deg/s of roll rate
+            // commands an opposing 50 cdeg (0.5 deg) of bank target so the
+            // attitude controller fights the rotation rather than coasting.
+            const float roll_rate_dps = degrees(ahrs.get_gyro().x);
+            const float damp_cd       = -(roll_rate_dps * 50.0f);
+            plane.nav_roll_cd = constrain_int32((int32_t)damp_cd,
+                                                -plane.roll_limit_cd,
+                                                 plane.roll_limit_cd);
+        } else {
+            const float roll_cd = plane.g2.tracking_roll_pid.update_error(degrees(ex), dt_s);
+            plane.nav_roll_cd   = constrain_int32((int32_t)roll_cd,
+                                                  -plane.roll_limit_cd,
+                                                   plane.roll_limit_cd);
         }
-        const float roll_cd  = plane.g2.tracking_roll_pid.update_error(degrees(ex), dt_s);
-        plane.nav_roll_cd    = constrain_int32((int32_t)roll_cd,
-                                               -plane.roll_limit_cd,
-                                                plane.roll_limit_cd);
 
         // ── Pitch PID ────────────────────────────────────────────────────────
         // errory > 0 → target is above → pitch up (positive setpoint).
+        // TRK_PITCH_OFFSET adds a constant bias (converted to rad) so the
+        // aircraft can be trimmed toward the target without retuning the PID.
         // Reset I when inside deadband to prevent integrator wind-up.
-        const float ey = fabsf(_errory_rad) > deadband_rad ? _errory_rad : 0.0f;
-        if (ey == 0.0f) {
+        const float pitch_offset_rad = plane.g2.tracking_pitch_offset.get() * (M_PI / 180.0f);
+        const float ey_raw = fabsf(_errory_rad) > deadband_rad ? _errory_rad : 0.0f;
+        const float ey     = ey_raw - pitch_offset_rad;
+        if (ey_raw == 0.0f) {
             plane.g2.tracking_pitch_pid.reset_I();
         }
         const float pitch_cd = plane.g2.tracking_pitch_pid.update_error(degrees(ey), dt_s);
@@ -116,20 +130,13 @@ void ModeTracking::update()
 
     plane.update_load_factor();
 
-    // ── Constant throttle ────────────────────────────────────────────────────
-    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle,
-                                    plane.aparm.throttle_cruise.get());
+    // ── Throttle ─────────────────────────────────────────────────────────────
+    // When errorx is outside the deadband the aircraft is banking to chase the
+    // target; reduce to half TRIM_THROTTLE so speed stays manageable during
+    // the turn.  In the deadband (or on timeout) use the full cruise throttle.
+    const float throttle = ex_in_deadband
+        ? plane.aparm.throttle_cruise.get()
+        : plane.aparm.throttle_cruise.get() * 0.5f;
+    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, throttle);
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    // ── Debug: print servo 1-4 raw PWM at 10 Hz ──────────────────────────────
-    if (now_ms - _last_debug_ms >= 100) {
-        _last_debug_ms = now_ms;
-        ::printf("[TRAK] srv1=%u srv2=%u srv3=%u srv4=%u  ex=%.3f ey=%.3f\n",
-            (unsigned)hal.rcout->read(0),
-            (unsigned)hal.rcout->read(1),
-            (unsigned)hal.rcout->read(2),
-            (unsigned)hal.rcout->read(3),
-            (double)_errorx_rad, (double)_errory_rad);
-    }
-#endif
 }

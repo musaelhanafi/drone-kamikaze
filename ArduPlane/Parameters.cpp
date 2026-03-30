@@ -1280,37 +1280,46 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPINFO("GUIDED_TIMEOUT", 40, ParametersG2, guided_timeout, 3.0f),
 
     // @Path: ../libraries/AC_PID/AC_PID.cpp
-    AP_SUBGROUPINFO(tracking_roll_pid,  "TRAK_ROLL_", 42, ParametersG2, AC_PID),
+    AP_SUBGROUPINFO(tracking_roll_pid,  "TRK_ROLL_", 42, ParametersG2, AC_PID),
 
     // @Path: ../libraries/AC_PID/AC_PID.cpp
-    AP_SUBGROUPINFO(tracking_pitch_pid, "TRAK_PTCH_", 43, ParametersG2, AC_PID),
+    AP_SUBGROUPINFO(tracking_pitch_pid, "TRK_PTCH_", 43, ParametersG2, AC_PID),
 
-    // @Param: TRACKING_MAX_DEG
+    // @Param: TRK_MAX_DEG
     // @DisplayName: Tracking mode max delta angle
     // @Description: Maximum roll/pitch angle commanded when errorx/errory is at full scale (±1). The normalised tracking error is multiplied by this value before being passed to the PID controllers.
     // @Units: deg
     // @Range: 1 90
     // @Increment: 0.5
     // @User: Standard
-    AP_GROUPINFO("TRACKING_MAX_DEG", 44, ParametersG2, tracking_max_deg, 45.0f),
+    AP_GROUPINFO("TRK_MAX_DEG", 44, ParametersG2, tracking_max_deg, 30.0f),
 
-    // @Param: TRACKING_DBAND
+    // @Param: TRK_DBAND
     // @DisplayName: Tracking mode error deadband
     // @Description: Tracking errors smaller than this angle are treated as zero. Prevents integrator wind-up when the target is nearly centred.
     // @Units: deg
     // @Range: 0 5
     // @Increment: 0.05
     // @User: Advanced
-    AP_GROUPINFO("TRACKING_DBAND", 45, ParametersG2, tracking_deadband_deg, 0.573f),
+    AP_GROUPINFO("TRK_DBAND", 45, ParametersG2, tracking_deadband_deg, 0.573f),
 
-    // @Param: TRACKING_TIMEOUT
+    // @Param: TRK_TIMEOUT
     // @DisplayName: Tracking mode signal timeout
     // @Description: If no TRACKING MAVLink message is received within this period the PIDs are reset and roll/pitch commands are zeroed until the signal returns.
     // @Units: ms
     // @Range: 100 5000
     // @Increment: 100
     // @User: Advanced
-    AP_GROUPINFO("TRACKING_TIMEOUT", 46, ParametersG2, tracking_timeout_ms, 1000),
+    AP_GROUPINFO("TRK_TIMEOUT", 46, ParametersG2, tracking_timeout_ms, 1000),
+
+    // @Param: TRK_PITCH_OFFSET
+    // @DisplayName: Tracking mode pitch offset
+    // @Description: Constant pitch bias (deg) added to the PID setpoint in TRACKING mode. Positive values pitch the nose up; negative values pitch it down. Useful to compensate for camera mounting angle or trim the glide slope toward the target.
+    // @Units: deg
+    // @Range: -30 30
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_PITCH_OFFSET", 47, ParametersG2, tracking_pitch_offset, 3.0f),
 
 #if AP_RANGEFINDER_ENABLED
     // @Param: RNGFND_LND_DIST

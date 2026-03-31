@@ -90,6 +90,10 @@ void ModeTracking::update()
             plane.g2.tracking_roll_pid.reset_filter();
             plane.g2.tracking_pitch_pid.reset_I();
             plane.g2.tracking_pitch_pid.reset_filter();
+            // Level out: clear any dive/bank commands so the aircraft does not
+            // continue on a dangerous attitude if signal was lost in terminal phase.
+            plane.nav_roll_cd  = 0;
+            plane.nav_pitch_cd = 0;
         }
         _was_timed_out = true;
     } else {

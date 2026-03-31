@@ -514,6 +514,13 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     // @Description: Amplitude scaling of motor noise relative to gyro/accel noise
     AP_GROUPINFO("VIB_MOT_MULT", 63, SIM,  vibe_motor_scale, 1.0f),
 
+    // @Param: ENABLED
+    // @DisplayName: Simulation sensor injection enabled
+    // @Description: When 1 (default), X-Plane/HIL sensor data is injected into the INS/AHRS replacing hardware sensors. Set to 0 to disable simulation injection and use real onboard hardware sensors (gyro, accel, baro, compass) instead.
+    // @Values: 0:Hardware sensors, 1:Simulation injection
+    // @User: Advanced
+    AP_GROUPINFO("ENABLED",       64, SIM,  sim_enabled, 1),
+
 
     AP_GROUPEND
 

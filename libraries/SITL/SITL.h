@@ -258,6 +258,7 @@ public:
     AP_Int16 loop_time_jitter_us;
     AP_Int32 on_hardware_output_enable_mask;  // mask of output channels passed through to actual hardware
     AP_Int16 on_hardware_relay_enable_mask;   // mask of relays passed through to actual hardware
+    AP_Int8  sim_enabled;                     // 1 = use X-Plane/HIL sensor injection, 0 = use real hardware sensors
 
     AP_Float uart_byte_loss_pct;
 

@@ -26,6 +26,12 @@ BRD_SAFETY_DEFLT 0
 ARMING_SKIPCHK -1
 ARMING_REQUIRE 1
 
+# RC: disable throttle failsafe and RC override timeout so the system
+# does not block on "Waiting for RC" when no physical RC is connected.
+# RC_CHANNELS_OVERRIDE (from GCS) is always accepted.
+THR_FAILSAFE 0
+RC_OVERRIDE_TIME -1
+
 # Scheduler: 50 Hz — prevents watchdog reset on STM32F427
 SCHED_LOOP_RATE 50
 
@@ -36,6 +42,39 @@ LOG_DISARM 0
 
 # SITL speedup: 1x real-time
 SIM_SPEEDUP 1
+
+# ── Servo output functions — conventional plane ───────────────────────────────
+# Maps ArduPlane output channels to surface functions.
+# Must match xplane_plane.json DREF channel assignments.
+SERVO1_FUNCTION 4    # Aileron
+SERVO2_FUNCTION 19   # Elevator
+SERVO3_FUNCTION 70   # Throttle
+SERVO4_FUNCTION 21   # Rudder
+
+# ── RC input channel mapping ──────────────────────────────────────────────────
+# Standard mode-2 Tx: left stick = throttle/yaw, right stick = pitch/roll.
+RCMAP_ROLL      1
+RCMAP_PITCH     2
+RCMAP_THROTTLE  3
+RCMAP_YAW       4
+
+# ── Auto takeoff — ground roll + steering ─────────────────────────────────────
+# Apply full throttle immediately on TKOFF, no acceleration pre-check.
+TKOFF_THR_MINACC 0
+TKOFF_THR_MINSPD 0
+TKOFF_THR_DELAY  0
+TKOFF_THR_MAX    100
+
+# Rotate (pitch up) at this airspeed (m/s) — set to suit the aircraft stall speed.
+TKOFF_ROTATE_SPD 12
+
+# Ground steering active below this altitude AGL (m).
+# Rudder tracks takeoff heading during ground roll.
+GROUND_STEER_ALT 5
+
+# Elevator hold during ground roll: 0 = neutral (tricycle gear).
+TKOFF_TDRAG_ELEV 0
+TKOFF_TDRAG_SPD1 0
 
 # ── SITL servo override ───────────────────────────────────────────────────────
 # SIM_OH_MASK: pass RC hardware input directly to all 8 servo channels.
@@ -53,6 +92,10 @@ SIM_OPOS_HDG  108.0
 # PPP runs on TELEM2 (SERIAL2) for X-Plane UDP data.
 # PC command (macOS): sudo pppd /dev/tty.usbserial-XXXX 115200 10.0.0.1:10.0.0.2 noauth local nodetach asyncmap 0 novj nopcomp noaccomp lcp-echo-interval 0
 # PC command (Linux): sudo pppd /dev/ttyUSB0 115200 10.0.0.1:10.0.0.2 noauth local nodetach asyncmap 0 novj nopcomp noaccomp lcp-echo-interval 0
+# asyncmap 0         — disables control-char escaping
+# novj               — disables VJ TCP header compression
+# nopcomp/noaccomp   — disables PPP header compression
+# lcp-echo-interval 0 — disables LCP keepalive (ArduPilot PPP does not reply)
 SERIAL0_PROTOCOL 2
 SERIAL0_BAUD 921
 

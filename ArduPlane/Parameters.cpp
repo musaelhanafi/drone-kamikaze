@@ -1321,6 +1321,42 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TRK_PITCH_OFFSET", 47, ParametersG2, tracking_pitch_offset, 3.0f),
 
+    // @Param: TRK_TERM_ALT
+    // @DisplayName: Tracking terminal phase altitude
+    // @Description: AGL altitude (m) below which TRACKING mode applies full throttle for maximum terminal speed. Set to 0 to disable (normal throttle management always). Set to e.g. 30 for a 30m terminal phase.
+    // @Units: m
+    // @Range: 0 200
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_TERM_ALT", 48, ParametersG2, tracking_term_alt, 0.0f),
+
+    // @Param: TRK_TERM_PTCH
+    // @DisplayName: Tracking terminal pitch-down compensation
+    // @Description: Additional pitch-down bias (deg) added to the PID setpoint during the terminal phase (when AGL < TRK_TERM_ALT). Compensates for the nose-up pitching moment caused by full throttle. Positive values pitch the nose down. Tune by observing nose-up tendency at full throttle.
+    // @Units: deg
+    // @Range: 0 20
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_TERM_PTCH", 49, ParametersG2, tracking_term_pitch, 0.0f),
+
+    // @Param: TRK_APP_SPD
+    // @DisplayName: Tracking approach airspeed
+    // @Description: Target airspeed (m/s) during the approach phase of TRACKING mode. A simple P-controller adjusts throttle to maintain this speed, giving consistent time-of-flight and predictable impact. Set 0 to disable (open-loop TRIM_THROTTLE). Typical value: 20–30 m/s. Banking reduces the target by 20% to prevent overspeed in turns.
+    // @Units: m/s
+    // @Range: 0 50
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_APP_SPD", 50, ParametersG2, tracking_app_spd, 0.0f),
+
+    // @Param: TRK_SETTLE_S
+    // @DisplayName: Tracking throttle settle time
+    // @Description: Seconds to hold TRIM_THROTTLE after entering TRACKING mode or re-acquiring lock before enabling airspeed control. Allows the aircraft to stabilise attitude before the speed controller takes over. Default 2 s.
+    // @Units: s
+    // @Range: 0 10
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_SETTLE_S", 51, ParametersG2, tracking_settle_s, 2.0f),
+
 #if AP_RANGEFINDER_ENABLED
     // @Param: RNGFND_LND_DIST
     // @DisplayName: Rangefinder landing engagement distance

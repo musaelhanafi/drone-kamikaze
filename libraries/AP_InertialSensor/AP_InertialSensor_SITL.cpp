@@ -72,6 +72,10 @@ float AP_InertialSensor_SITL::get_temperature(void)
  */
 void AP_InertialSensor_SITL::generate_accel()
 {
+    // When SIM_ENABLED=0, skip injection so hardware IMU backends take over.
+    if (sitl->sim_enabled == 0) {
+        return;
+    }
     Vector3f accel_accum;
     uint8_t nsamples = enable_fast_sampling(accel_instance) ? 4 : 1;
 
@@ -209,6 +213,10 @@ void AP_InertialSensor_SITL::generate_accel()
  */
 void AP_InertialSensor_SITL::generate_gyro()
 {
+    // When SIM_ENABLED=0, skip injection so hardware IMU backends take over.
+    if (sitl->sim_enabled == 0) {
+        return;
+    }
     Vector3f gyro_accum;
     uint8_t nsamples = enable_fast_sampling(gyro_instance) ? 8 : 1;
 

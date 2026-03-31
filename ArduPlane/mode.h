@@ -1109,4 +1109,7 @@ private:
     uint32_t _last_msg_ms;        // timestamp of last TRACKING message
     uint32_t _prev_update_ms;     // for dt computation in update()
     bool     _was_timed_out;      // edge-detect for active → timed-out transition
+    uint32_t _lock_stable_ms;     // timestamp when stable lock was first achieved after entry/re-acq
+    float    _est_errorx_rad;     // dead-reckoning estimate of errorx when track is lost
+    float    _est_errory_rad;     // dead-reckoning estimate of errory when track is lost
 };

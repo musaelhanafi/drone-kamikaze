@@ -577,6 +577,10 @@ public:
     AP_Float tracking_deadband_deg;  // TRK_DBAND:        ignore errors smaller than this (deg)
     AP_Int16 tracking_timeout_ms;    // TRK_TIMEOUT:      signal loss timeout (ms)
     AP_Float tracking_pitch_offset;  // TRK_PITCH_OFFSET: constant pitch bias added to setpoint (deg)
+    AP_Float tracking_term_alt;      // TRK_TERM_ALT:     AGL altitude below which full throttle is applied (m)
+    AP_Float tracking_term_pitch;    // TRK_TERM_PTCH:    extra pitch-down bias (deg) applied in terminal phase to counter throttle-induced nose-up
+    AP_Float tracking_app_spd;       // TRK_APP_SPD:      approach target airspeed (m/s); 0 = use TRIM_THROTTLE open-loop
+    AP_Float tracking_settle_s;      // TRK_SETTLE_S:     seconds to hold cruise throttle after mode entry / re-acquisition before enabling speed control
 
     AP_Float guided_timeout;
 

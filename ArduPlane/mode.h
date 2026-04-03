@@ -1110,6 +1110,6 @@ private:
     uint32_t _prev_update_ms;     // for dt computation in update()
     bool     _was_timed_out;      // edge-detect for active → timed-out transition
     uint32_t _lock_stable_ms;     // timestamp when stable lock was first achieved after entry/re-acq
-    float    _est_errorx_rad;     // dead-reckoning estimate of errorx when track is lost
-    float    _est_errory_rad;     // dead-reckoning estimate of errory when track is lost
+    float    _cruise_throttle;    // throttle to use in TRACKING mode (can be set via MAVLink)
+    uint32_t _terminal_entry_ms;  // timestamp when terminal phase was first entered (0 = not yet)
 };

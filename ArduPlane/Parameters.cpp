@@ -1357,6 +1357,36 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TRK_SETTLE_S", 51, ParametersG2, tracking_settle_s, 2.0f),
 
+    // @Param: TRK_TGT_ALT
+    // @DisplayName: Tracking target MSL altitude
+    // @Description: MSL altitude (m) of the target. Terminal phase activates when (current_alt_msl - TRK_TGT_ALT) <= TRK_TERM_ALT. Set to 0 if unused.
+    // @Units: m
+    // @Range: -500 5000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_ALT", 55, ParametersG2, tracking_target_alt_msl, 744.0f),
+
+    // @Param: TRK_TGT_LAT
+    // @DisplayName: Tracking target latitude
+    // @Description: Latitude of the target in decimal degrees. Used for future target-relative guidance.
+    // @Units: deg
+    // @Range: -90 90
+    // @Increment: 0.000001
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_LAT", 56, ParametersG2, tracking_target_lat, -6.897434f),
+
+    // @Param: TRK_TGT_LON
+    // @DisplayName: Tracking target longitude
+    // @Description: Longitude of the target in decimal degrees. Used for future target-relative guidance.
+    // @Units: deg
+    // @Range: -180 180
+    // @Increment: 0.000001
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_LON", 57, ParametersG2, tracking_target_lon, 107.566887f),
+
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_throt_pid, "TRK_THR_", 54, ParametersG2, AC_PID),
+
 #if AP_RANGEFINDER_ENABLED
     // @Param: RNGFND_LND_DIST
     // @DisplayName: Rangefinder landing engagement distance

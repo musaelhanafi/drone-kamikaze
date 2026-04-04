@@ -87,6 +87,11 @@ SIM_OPOS_LNG  107.566887
 SIM_OPOS_ALT  744.0
 SIM_OPOS_HDG  108.0
 
+# ── Tracking target position ──────────────────────────────────────────────────
+TRK_TGT_LAT -6.897367724
+TRK_TGT_LON  107.566559898
+TRK_TGT_ALT  744.0
+
 # ── Networking / PPP ─────────────────────────────────────────────────────────
 # USB (SERIAL0) stays as MAVLink2 — QGC connects directly via USB.
 # PPP runs on TELEM2 (SERIAL2) for X-Plane UDP data.

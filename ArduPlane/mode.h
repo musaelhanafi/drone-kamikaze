@@ -1112,4 +1112,7 @@ private:
     uint32_t _lock_stable_ms;     // timestamp when stable lock was first achieved after entry/re-acq
     float    _cruise_throttle;    // throttle to use in TRACKING mode (can be set via MAVLink)
     uint32_t _terminal_entry_ms;  // timestamp when terminal phase was first entered (0 = not yet)
+    float    _kf_x[2];            // Kalman state: [pitch_err (rad), pitch_err_rate (rad/s)]
+    float    _kf_P[4];            // 2x2 covariance row-major: [P00, P01, P10, P11]
+    bool     _kf_initialized;     // true after first measurement has been processed
 };

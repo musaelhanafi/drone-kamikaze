@@ -1384,6 +1384,31 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TRK_TGT_LON", 57, ParametersG2, tracking_target_lon, 107.566887f),
 
+    // @Param: TRK_THR_LEAD
+    // @DisplayName: Kalman prediction horizon
+    // @Description: Look-ahead time (s) for the Kalman-filtered pitch error. The filter estimates pitch_err and its rate; throttle sees pitch_err + rate * TRK_THR_LEAD, reducing lag on fast-diving targets. Set 0 to use the filtered value directly with no look-ahead.
+    // @Units: s
+    // @Range: 0 0.5
+    // @Increment: 0.05
+    // @User: Advanced
+    AP_GROUPINFO("TRK_THR_LEAD", 58, ParametersG2, tracking_throt_lead, 0.1f),
+
+    // @Param: TRK_KF_Q
+    // @DisplayName: Kalman process noise (pitch rate)
+    // @Description: Process noise variance for the pitch-error rate state in the throttle Kalman filter. Higher values make the filter track rapid pitch-rate changes faster at the cost of more noise in the throttle command. Lower values give a smoother but more lagged estimate.
+    // @Range: 0.001 10.0
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("TRK_KF_Q", 59, ParametersG2, tracking_kf_q, 0.1f),
+
+    // @Param: TRK_KF_R
+    // @DisplayName: Kalman measurement noise (pitch error)
+    // @Description: Measurement noise variance for the observed pitch error fed into the throttle Kalman filter. Increase if AHRS pitch is noisy; decrease to trust the measurement more and respond faster.
+    // @Range: 0.0001 1.0
+    // @Increment: 0.001
+    // @User: Advanced
+    AP_GROUPINFO("TRK_KF_R", 60, ParametersG2, tracking_kf_r, 0.01f),
+
     // @Path: ../libraries/AC_PID/AC_PID.cpp
     AP_SUBGROUPINFO(tracking_throt_pid, "TRK_THR_", 54, ParametersG2, AC_PID),
 

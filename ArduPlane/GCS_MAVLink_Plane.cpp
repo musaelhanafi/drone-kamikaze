@@ -1039,7 +1039,7 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
         handle_set_position_target_global_int(msg);
         break;
 
-    case MAVLINK_MSG_ID_DEBUG_VECT:
+    case MAVLINK_MSG_ID_TRACKING_MESSAGE:
         handle_tracking_message(msg);
         break;
 
@@ -1050,14 +1050,14 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
 } // end handle mavlink
 
 /*
-  Handle DEBUG_VECT message for TRACKING mode.
-  x = errorx, y = errory, normalised in [-1, 1].
+  Handle TRACKING_MESSAGE for TRACKING mode.
+  errorx/errory are normalised in [-1, 1].
   Converted to radians using TRACKING_MAX_DEG before passing to the PID.
 */
 void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
 {
-    mavlink_debug_vect_t pkt;
-    mavlink_msg_debug_vect_decode(&msg, &pkt);
+    mavlink_tracking_message_t pkt;
+    mavlink_msg_tracking_message_decode(&msg, &pkt);
 
     if (plane.control_mode != &plane.mode_tracking) {
         return;
@@ -1065,8 +1065,8 @@ void GCS_MAVLINK_Plane::handle_tracking_message(const mavlink_message_t &msg)
 
     const float max_rad = plane.g2.tracking_max_deg.get() * (M_PI / 180.0f);
     plane.mode_tracking.handle_tracking_error(
-        pkt.x * max_rad,
-        pkt.y * max_rad);
+        pkt.errorx * max_rad,
+        pkt.errory * max_rad);
 }
 
 void GCS_MAVLINK_Plane::handle_set_attitude_target(const mavlink_message_t &msg)

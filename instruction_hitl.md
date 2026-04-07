@@ -228,6 +228,50 @@ DREFs via `override_joystick`:
 | Throttle stays at 0 when armed | RANGE DREFs zeroed when disarmed | This is by design — arm first |
 | "Waiting for RC" / won't arm | Failsafe active | Verify `THR_FAILSAFE 0` is loaded; reset params if needed |
 | Takeoff doesn't start in AUTO | Throttle gate not cleared | Verify `TKOFF_THR_MINSPD 0`, `TKOFF_THR_MINACC 0` |
+| Build fails `redefinition of 'param_union'` | Spurious MAVLink headers in source tree | Run `python3 fix_mavlink_headers.py` then `./waf distclean && ./waf configure --board fmuv3-hil && ./waf plane` |
+
+---
+
+## Build Firmware
+
+If you need to rebuild from source:
+
+```bash
+cd /path/to/ardupilot
+
+# Configure board fmuv3-hil
+./waf configure --board fmuv3-hil
+
+# Build ArduPlane
+./waf plane
+
+# Flash via uploader
+python Tools/scripts/uploader.py build/fmuv3-hil/bin/arduplane
+```
+
+### Patches required before building (after clone or submodule reset)
+
+Run `fix_mavlink_headers.py` to apply two fixes at once:
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| **1** | `libraries/GCS_MAVLink/include/` in source tree (untracked) → `redefinition of 'param_union'` | Remove the directory |
+| **2** | `TRACKING_MESSAGE` (ID 11045) absent from upstream `ardupilotmega.xml` → message silently dropped by `mavlink_get_msg_entry()` | Apply `fix_mavlink_tracking_message.patch` to the mavlink submodule |
+
+```bash
+# Run from ardupilot root
+python3 fix_mavlink_headers.py
+
+# Check status only (no changes)
+python3 fix_mavlink_headers.py --check
+
+# Then rebuild
+./waf distclean
+./waf configure --board fmuv3-hil
+./waf plane
+```
+
+Patch file: [`fix_mavlink_tracking_message.patch`](fix_mavlink_tracking_message.patch)
 
 ---
 

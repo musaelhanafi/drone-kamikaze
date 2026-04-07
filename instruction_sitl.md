@@ -377,6 +377,7 @@ pitch = (CH1 + CH2 - 3000) / 1000 → yoke_pitch_ratio  (negated)
 | Tidak bisa arm | Pre-arm check gagal | Pastikan `ARMING_SKIPCHK -1` loaded; cek parameter via MAVProxy `param show ARMING_SKIPCHK` |
 | Takeoff AUTO tidak jalan | Throttle gate belum clear | Pastikan `TKOFF_THR_MINSPD 0`, `TKOFF_THR_MINACC 0` |
 | X-Plane controls kaku / tidak responsif | Data rate rendah | Pastikan DATA@ rows aktif di X-Plane, terutama row 16, 17 |
+| Build gagal `redefinition of 'param_union'` | Header MAVLink duplikat di source tree | Jalankan `python3 fix_mavlink_headers.py` lalu `./waf distclean && ./waf configure --board x86-hil && ./waf plane` |
 
 ---
 
@@ -396,6 +397,30 @@ python modules/waf/waf-light plane
 # Binary ada di:
 # build/x86-hil/bin/arduplane
 ```
+
+### Patch sebelum build (wajib setelah clone atau reset submodule)
+
+Script `fix_mavlink_headers.py` menerapkan dua fix sekaligus:
+
+| Fix | Masalah | Solusi |
+|-----|---------|--------|
+| **1** | `libraries/GCS_MAVLink/include/` ada di source tree (tidak ter-track git) → `redefinition of 'param_union'` | Hapus folder tersebut |
+| **2** | `TRACKING_MESSAGE` (ID 11045) tidak ada di upstream `ardupilotmega.xml` → pesan dibuang diam-diam oleh `mavlink_get_msg_entry()` | Apply `fix_mavlink_tracking_message.patch` ke submodule mavlink |
+
+```bash
+# Jalankan dari root repo ardupilot
+python3 fix_mavlink_headers.py
+
+# Cek status saja tanpa mengubah apapun
+python3 fix_mavlink_headers.py --check
+
+# Kemudian rebuild
+./waf distclean
+./waf configure --board x86-hil
+./waf plane
+```
+
+File patch: [`fix_mavlink_tracking_message.patch`](fix_mavlink_tracking_message.patch)
 
 ---
 

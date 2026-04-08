@@ -23,6 +23,9 @@
 #include <SITL/SIM_Blimp.h>
 #include <SITL/SIM_NoVehicle.h>
 #include <SITL/SIM_JSON.h>
+#if AP_SIM_XPLANE_ENABLED
+#include <SITL/SIM_XPlane.h>
+#endif
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
 #include <AP_Baro/AP_Baro.h>

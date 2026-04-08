@@ -1,0 +1,133 @@
+# Complete parameter set for FX-61 Phantom flying wing
+# ArduPlane 4.3.6 — SITL-on-hardware (fmuv3-hil) with X-Plane backend
+#
+# Airframe: FX-61 Phantom flying wing, pusher motor
+#   Wingspan: 1.6 m   AUW: ~1.2 kg   Cruise: 15 m/s   Stall: ~10 m/s
+#   CH1 = left elevon   CH2 = right elevon   CH3 = throttle
+#
+# Load via MAVProxy: param load params/fx61-4.3.6.param
+
+# ── Servo output functions ────────────────────────────────────────────────────
+# Elevon mixing done in ArduPilot; X-Plane DREF map reads pre-mixed CH1/CH2
+SERVO1_FUNCTION      77      # Elevon left
+SERVO2_FUNCTION      78      # Elevon right
+SERVO3_FUNCTION      70      # Throttle
+SERVO1_MIN         1000
+SERVO1_MAX         2000
+SERVO1_TRIM        1500
+SERVO1_REVERSED       0
+SERVO2_MIN         1000
+SERVO2_MAX         2000
+SERVO2_TRIM        1500
+SERVO2_REVERSED       0
+SERVO3_MIN         1000
+SERVO3_MAX         2000
+SERVO3_TRIM        1000
+SERVO3_REVERSED       0
+
+# ── RC input ──────────────────────────────────────────────────────────────────
+RC1_MIN            1000
+RC1_MAX            2000
+RC1_TRIM           1500
+RC1_DZ               30
+RC2_MIN            1000
+RC2_MAX            2000
+RC2_TRIM           1500
+RC2_DZ               30
+RC3_MIN            1000
+RC3_MAX            2000
+RC3_TRIM           1000
+RC3_DZ               30
+RC4_MIN            1000
+RC4_MAX            2000
+RC4_TRIM           1500
+RC4_DZ               30
+
+# ── Flight modes (6-pos switch) ───────────────────────────────────────────────
+FLTMODE1              0      # MANUAL
+FLTMODE2              5      # FBWA
+FLTMODE3              6      # FBWB
+FLTMODE4              2      # STABILIZE
+FLTMODE5             11      # AUTO
+FLTMODE6             15      # GUIDED
+
+# ── Airspeed ──────────────────────────────────────────────────────────────────
+AIRSPEED_USE          1      # Use airspeed sensor (SITL backend)
+AIRSPEED_MIN         10      # m/s — stall speed + margin
+AIRSPEED_MAX         22      # m/s — max structural
+TRIM_ARSPD_CM      1500      # 15 m/s cruise target (cm/s)
+ARSPD_FBW_MIN        12      # FBWA min airspeed m/s
+ARSPD_FBW_MAX        20      # FBWA max airspeed m/s
+
+# ── Throttle ──────────────────────────────────────────────────────────────────
+THR_MIN               0
+THR_MAX             100
+THR_CRUISE           55      # % — cruise throttle
+THR_SLEWRATE        100
+
+# ── Attitude limits ───────────────────────────────────────────────────────────
+LIM_ROLL_CD        4500      # 45 deg max bank
+LIM_PITCH_MAX      2000      # 20 deg pitch up
+LIM_PITCH_MIN     -1500      # 15 deg pitch down
+STALL_PREVENTION      1
+
+# ── Roll controller ───────────────────────────────────────────────────────────
+RLL_RATE_P         0.15
+RLL_RATE_I         0.10
+RLL_RATE_D        0.004
+RLL_RATE_FF        0.00
+RLL_RATE_IMAX      0.20
+RLL_2SRV_TCONST    0.45
+RLL_2SRV_RMAX        60      # deg/s max roll rate demand
+
+# ── Pitch controller ──────────────────────────────────────────────────────────
+PTCH_RATE_P        0.10
+PTCH_RATE_I        0.10
+PTCH_RATE_D       0.003
+PTCH_RATE_FF       0.00
+PTCH_RATE_IMAX     0.20
+PTCH_2SRV_TCONST   0.45
+PTCH_2SRV_RMAX_UP    20      # deg/s — clamped to param range 0-100
+PTCH_2SRV_RMAX_DN    20
+PTCH_2SRV_RLL       1.00     # roll compensation gain
+
+# ── TECS (Total Energy Control System) ────────────────────────────────────────
+TECS_CLMB_MAX       6.0      # m/s max climb rate
+TECS_SINK_MIN       2.0      # m/s min sink (powered)
+TECS_SINK_MAX       5.0      # m/s max sink (unpowered)
+TECS_TIME_CONST     5.0      # controller time constant
+TECS_THR_DAMP       0.5
+TECS_INTEG_GAIN     0.10
+TECS_VERT_ACC       7.0
+TECS_HGT_OMEGA      3.0
+TECS_SPD_OMEGA      2.0
+TECS_RLL2THR       10.0      # deg bank → throttle compensation
+TECS_SPDWEIGHT      1.0      # 0=altitude priority  2=speed priority
+TECS_PITCH_MAX       20      # deg max pitch up (TECS)
+TECS_PITCH_MIN      -15      # deg max pitch down (TECS)
+TECS_SYNAIRSPEED      0
+
+# ── L1 navigation controller ──────────────────────────────────────────────────
+NAVL1_PERIOD        20.0     # navigation period (s) — increase for smoother turns
+NAVL1_DAMPING       0.75
+
+# ── Altitude ──────────────────────────────────────────────────────────────────
+ALT_HOLD_RTL        5000     # 50 m RTL altitude (cm)
+ALT_HOLD_FBWCM      30000    # 300 m FBWB max alt (cm)
+CRUISE_ALT_FLOOR      0
+
+# ── Battery (no monitor in sim) ───────────────────────────────────────────────
+BATT_MONITOR          0
+
+# ── Fence (off in sim) ────────────────────────────────────────────────────────
+FENCE_ENABLE          0
+
+# ── Compass ───────────────────────────────────────────────────────────────────
+COMPASS_USE           1
+COMPASS_USE2          0
+COMPASS_USE3          0
+
+# ── Logging (disabled — no SD card) ──────────────────────────────────────────
+LOG_BITMASK           0
+LOG_BACKEND_TYPE      0
+

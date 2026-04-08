@@ -123,3 +123,8 @@ JuanDeLaCierva_W=40.221735,-3.734388,625,260
 JuanDeLaCierva_NW=40.221544,-3.734174,625,295
 TrescasasField_NE=40.968861,-4.052750,1092,30
 TrescasasField_SW=40.968861,-4.052750,1092,210
+# WICC — Husein Sastranegara International Airport, Bandung, Indonesia (elev 744 m)
+# Coordinates from X-Plane 11 spawn point (terrain elevation 744.7 m)
+WICC=-6.897434,107.566887,744,108      # X-Plane spawn point, facing RWY13
+WICC_RWY13=-6.8971,107.5708,744,130   # RWY 13 threshold, take-off heading 130° (SE)
+WICC_RWY31=-6.9041,107.5810,744,310   # RWY 31 threshold, take-off heading 310° (NW)

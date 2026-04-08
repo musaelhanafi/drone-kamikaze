@@ -1,215 +1,287 @@
-# HITL Setup — ArduPlane fmuv3-hil + X-Plane 11
+# HITL Setup — ArduPlane fmuv3-hil + X-Plane 11/12
 
 Hardware-in-the-Loop (HITL) using a Pixhawk v2 (fmuv3) running custom
-ArduPlane firmware. X-Plane provides the flight model; the Pixhawk runs
-the real autopilot code with sensor data injected over MAVLink.
+ArduPlane firmware.  X-Plane provides the flight model; the Pixhawk runs
+the real autopilot code.  All sensor injection and actuator output are
+handled **inside the firmware** via the SITL XPlane backend — no bridge
+script or MAVProxy is required.
 
 ---
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    XP["X-Plane 11"]
-    BRIDGE["mavlink_xplane.py"]
-    MAVP["MAVProxy"]
-    QGC["QGroundControl"]
-    PX["Pixhawk fmuv3-hil"]
-    RC["RC Transmitter"]
-    RX["RC Receiver"]
+![HITL Architecture Diagram](hitl_diagram.png)
 
-    XP     -- "UDP :49005  DATA rows"       --> BRIDGE
-    BRIDGE -- "UDP :49000  DREF commands"   --> XP
+### Data flow
 
-    BRIDGE -- "UDP :14560  HIL_SENSOR / GPS_INPUT" --> MAVP
-    MAVP   -- "UDP :14560  SERVO_OUTPUT_RAW"       --> BRIDGE
+| Direction | Path | Content |
+|-----------|------|---------|
+| X-Plane → Pixhawk | UDP → PPP (TELEM2) | DATA@ rows (IMU, GPS, airspeed, attitude) |
+| Pixhawk → X-Plane | PPP (TELEM2) → UDP | DREF packets (yoke ratios, throttle, overrides) |
+| QGC ↔ Pixhawk | USB (SERIAL0) | MAVLink2 telemetry, parameters, mission |
+| RC Transmitter → RC Receiver → Pixhawk | 2.4 GHz radio + SBUS/PPM | RC stick input |
 
-    MAVP   -- "UDP :14550  MAVLink telemetry"      --> QGC
-
-    MAVP   -- "USB serial"  --> PX
-    PX     -- "USB serial"  --> MAVP
-
-    RC     -- "2.4 GHz radio" --> RX
-    RX     -- "SBUS / PPM"    --> PX
-```
+The **SITL XPlane backend** (`SIM_XPlane.cpp`) runs on the Pixhawk and:
+- Decodes incoming DATA@ rows to populate `SIMState` (sensor injection)
+- Reads `input.servos[]` each cycle and sends DREF packets to X-Plane
+- Uses `xplane_plane.json` (embedded in firmware ROMFS) to map servo channels
+  to X-Plane yoke/throttle DREFs
 
 ---
 
-## Physical Setup
+## Physical setup
 
-![HITL Physical Setup](hitl_setup.png)
+![HITL Physical Setup — FX-61 Phantom](hitl_setup.svg)
+
+## Physical connections
+
+| Cable | From | To |
+|-------|------|----|
+| USB-A → micro-B | PC | Pixhawk USB (SERIAL0) |
+| USB–UART adapter | PC (pppd) | Pixhawk TELEM2 (SERIAL2) at 115200 baud |
+
+X-Plane and QGC both run on the same PC.
 
 ---
 
 ## Prerequisites
 
 ```bash
-pip3 install pymavlink mavproxy
+pip3 install pymavlink
 ```
 
-- **Firmware**: ArduPlane built for `fmuv3-hil` (includes HIL_SENSOR handling
-  and embedded `defaults.parm`).  Flash once via Mission Planner or
-  `uploader.py`.
-- **X-Plane 11**: running, with a fixed-wing aircraft loaded, sim unpaused.
-  In X-Plane → Settings → Net Connections → Data:
-  - Send data to IP `127.0.0.1` port `49005`
-  - Receive commands on port `49000` (default)
+- **Firmware**: ArduPlane built for `fmuv3-hil`. Flash once via Mission Planner
+  or `uploader.py`. The `defaults.parm` is embedded and applied on clean EEPROM.
+- **X-Plane 11 or 12**: running, fixed-wing aircraft loaded, sim unpaused.
 
 ---
 
-## Step 1 — Connect Pixhawk via USB
+## Step 1 — Configure X-Plane networking
 
-Plug the Pixhawk into the laptop with a USB cable.
+X-Plane must send sensor DATA@ directly to the Pixhawk's PPP address and
+accept DREF commands back.  Configure once in X-Plane (it saves the setting):
 
-Find the serial port:
+**Settings → Net Connections → Data:**
+
+| Field | Value |
+|-------|-------|
+| Send data to IP | `10.0.0.2` |
+| Send data port | `49001` |
+| Receive commands port | `49000` |
+
+Enable the following DATA@ rows (**Settings → Data Output**, tick
+"Send data over the net"):
+
+| Row # | Name | Used for |
+|-------|------|----------|
+| 1 | Frame rate / sim time | timing |
+| 3 | Speeds | IAS → airspeed sensor |
+| 4 | G-load | body-frame accelerations → IMU |
+| 16 | Angular velocities | roll/pitch/yaw rates → gyro |
+| 17 | Pitch, roll, heading | attitude → EKF |
+| 20 | Lat, lon, altitude | GPS position |
+| 21 | Loc, vel, dist | NED velocity → GPS velocity |
+
+---
+
+## Step 2 — Start the PPP tunnel
+
+Connect the USB–UART adapter to the Pixhawk TELEM2 port.  Find its device
+name, then start `pppd`:
 
 ```bash
 # macOS
-ls /dev/tty.usbmodem*
-
-# Linux
-ls /dev/ttyACM*
+sudo pppd /dev/tty.usbserial-XXXX 115200 \
+  10.0.0.1:10.0.0.2 \
+  noauth local nodetach \
+  asyncmap 0 novj nopcomp noaccomp \
+  lcp-echo-interval 0
 ```
-
-Note the port, e.g. `/dev/tty.usbmodem1101`.
-
----
-
-## Step 2 — Run MAVProxy (serial → UDP mux)
-
-MAVProxy bridges the USB serial link and fans out MAVLink to both
-QGroundControl and the bridge script.
 
 ```bash
-mavproxy.py \
-  --master /dev/tty.usbmodem1101 \
-  --baudrate 115200 \
-  --out udp:127.0.0.1:14550 \
-  --out udp:127.0.0.1:14560 \
-  --daemon
+# Linux
+sudo pppd /dev/ttyUSB0 115200 \
+  10.0.0.1:10.0.0.2 \
+  noauth local nodetach \
+  asyncmap 0 novj nopcomp noaccomp \
+  lcp-echo-interval 0
 ```
 
-- Replace `/dev/tty.usbmodem1101` with your actual port.
-- `--daemon` keeps MAVProxy in the background (omit to keep it in the
-  foreground for debugging).
-- Leave this terminal open / running before starting anything else.
+| IP | Host |
+|----|------|
+| `10.0.0.1` | PC (X-Plane side) |
+| `10.0.0.2` | Pixhawk |
 
-Confirm it connects — you should see heartbeat lines or no error output.
+Keep this terminal open.  Once the Pixhawk boots and the firmware initialises
+the PPP interface, `pppd` will print `local  IP address 10.0.0.1`.
+
+> **pppd flags:**
+> `asyncmap 0` — no control-char escaping (~20 % bandwidth saving at 115200)
+> `novj` — disable VJ TCP header compression (reduces latency)
+> `nopcomp noaccomp` — disable PPP header compression (simpler framing)
+> `lcp-echo-interval 0` — disable LCP keepalive (firmware does not reply to
+> LCP Echo-Requests; without this pppd drops with "Peer not responding" after ~12 s)
 
 ---
 
-## Step 3 — Run QGroundControl
+## Step 3 — Connect QGroundControl
 
-Open **QGroundControl**.  It will auto-connect to `UDP :14550`.
+Plug the Pixhawk USB into the PC.  Open **QGroundControl** — it
+auto-connects via USB at 921600 baud (SERIAL0).
 
 You should see:
 - Vehicle connected (ArduPlane)
 - Parameters loaded
-- Flight mode displayed (e.g. MANUAL)
+- Flight mode (e.g. MANUAL)
 
-QGC is used for flight planning, mode changes, and parameter tuning.
-It does **not** need to be started before MAVProxy.
-
----
-
-## Step 4 — Run mavlink_xplane.py
-
-```bash
-cd /path/to/ardupilot
-
-python3 mavlink_xplane.py \
-  --pixhawk udp:127.0.0.1:14560 \
-  --xplane-host 127.0.0.1 \
-  --xplane-port 49000 \
-  --bind-port 49005 \
-  --gps-rate 5 \
-  --hil-rate 100
-```
-
-Add `--debug` to print attitude, sensor, and DREF values every 5 s.
-
-### Expected startup output
-
-```
-[MAV] Connecting to udp:127.0.0.1:14560 …
-[MAV] Heartbeat  sysid=1  compid=0
-[XP]  Listening on :49005  →  ('127.0.0.1', 49000)
-[XP]  Parking brake SET
-[XP]  DSEL rows [1, 3, 4, 16, 17, 20, 21]
-
-Running — Ctrl+C to stop
-
-[XP]  X-Plane 11 (build 115501)
-[XP]  First DREF → ('127.0.0.1', 49000)
-[GPS] lat=-6.900300  lon=107.575200  alt=738.0 m  hdg=103.0°
-[SRV] ail=1500 elev=1500 thr=1100 rud=1500  (50 msg/s)
-```
-
-### Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `[wait] No X-Plane DATA@` | X-Plane not sending data | Check Net Connections in X-Plane; unpause sim |
-| `[XP] First DREF` never prints | No SERVO_OUTPUT_RAW from FC | Check MAVProxy is running; FC is armed or ARMING_REQUIRE=0 |
-| Controls don't move in X-Plane | Override DREFs lost | Wait up to 5 s for automatic refresh; reload X-Plane aircraft |
-| EKF not initialising | GPS_INPUT not accepted | Verify GPS1_TYPE=14 in QGC parameters |
-| Heading wrong | Hardware compass active | Verify COMPASS_USE=0,1,2 are set (embedded in defaults.parm) |
+Use QGC for mode changes, mission upload, parameter tuning, and arming.
 
 ---
 
-## Step 5 — Run X-Plane 11
+## Step 4 — Unpause X-Plane
 
-1. Open **X-Plane 11** and load a fixed-wing aircraft at the target airport.
+Press **P** (or click the pause button) in X-Plane to start the simulation.
 
-2. Configure network output (only needed once — X-Plane saves the setting):
-   - Go to **Settings → Net Connections → Data**
-   - Under **Send network data output**, enable and set:
-     - IP address: `127.0.0.1`
-     - Port: `49005`
-   - Under **Accept network data input**, port should be `49000` (default).
+Once unpaused:
+- The Pixhawk starts receiving DATA@ rows over PPP and injecting sensor data
+- The EKF initialises (GPS fix visible in QGC within a few seconds)
+- Control surface DREF packets flow from the Pixhawk to X-Plane at ~25 Hz
 
-3. Enable the required DATA@ rows in X-Plane's **Data Output** panel
-   (**Settings → Data Output**).  Tick **"Send data over the net"** for each row:
+### Verify
 
-   | Row # | Name | Fields used |
-   |---|---|---|
-   | 1 | Frame rate | sim time (elapsed seconds) |
-   | 3 | Speeds | IAS (knots) → diff pressure for airspeed sensor |
-   | 4 | G-load | body-frame accelerations (x, y, z) |
-   | 16 | Angular velocities | roll/pitch/yaw rate → gyro |
-   | 17 | Pitch, roll, heading | attitude + true heading → GPS yaw |
-   | 20 | Lat, lon, altitude | GPS position |
-   | 21 | Loc, vel, dist | NED velocity → GPS velocity |
+In QGC you should see:
+- GPS position matching the X-Plane aircraft location
+- Attitude (roll/pitch/heading) matching the X-Plane cockpit
+- Airspeed updating as X-Plane airspeed changes
 
-   Rows that are **not** ticked will not be sent and the bridge will silently
-   use stale/zero values for those sensors.
+---
 
-3. **Unpause** the simulation (press `P` or click the pause button).
+## Step 5 — Arm and fly
 
-Once unpaused, `mavlink_xplane.py` will start receiving `DATA@` packets and
-inject sensor data into the Pixhawk.  You should see `[GPS]` lines updating
-every second and the aircraft attitude in QGC matching X-Plane.
+Power on the RC transmitter and confirm the RC receiver (connected to the
+Pixhawk RC input via SBUS or PPM) shows a link.  Arm via QGC or the RC
+transmitter arming sequence.
 
 ---
 
 ## Parameter notes
 
-All required parameters are embedded in `defaults.parm` and applied
-automatically on first boot with clean EEPROM.  Key values:
+All required parameters are in `defaults.parm` (embedded in firmware).
+Key values:
 
 | Parameter | Value | Purpose |
-|---|---|---|
-| `GPS1_TYPE` | 14 | Accept GPS_INPUT MAVLink messages |
-| `ARSPD_TYPE` | 100 | SITL airspeed backend (reads HIL_SENSOR diff pressure) |
-| `EK3_SRC1_YAW` | 2 | Yaw from GPS_INPUT heading field |
-| `COMPASS_USE` | 0 | Disable hardware compass fusion |
-| `SCHED_LOOP_RATE` | 100 | Allow 50 Hz SERVO_OUTPUT_RAW stream |
-| `BRD_SAFETY_DEFLT` | 0 | Disable safety switch requirement |
+|-----------|-------|---------|
+| `GPS1_TYPE` | 100 | SITL GPS backend (reads from SIMState / X-Plane) |
+| `ARSPD_TYPE` | 100 | SITL airspeed backend |
+| `AHRS_EKF_TYPE` | 2 | EKF2 (stable on STM32F427 with SITL backend) |
+| `BRD_SAFETY_DEFLT` | 0 | No safety switch in simulation |
+| `ARMING_SKIPCHK` | -1 | Skip all pre-arm checks |
+| `THR_FAILSAFE` | 0 | Disable RC/throttle failsafe |
+| `RC_OVERRIDE_TIME` | -1 | No timeout on RC_CHANNELS_OVERRIDE |
+| `SERIAL0_PROTOCOL` | 2 | USB = MAVLink2 (QGC) |
+| `SERIAL2_PROTOCOL` | 48 | TELEM2 = PPP |
+| `SERIAL2_BAUD` | 115 | 115200 baud for PPP |
+| `NET_ENABLE` | 1 | Enable lwIP networking |
+| `NET_OPTIONS` | 64 | Disable PPP LCP echo limit |
+| `SCHED_LOOP_RATE` | 50 | 50 Hz prevents watchdog on STM32F427 |
+| `SIM_OH_MASK` | 255 | Pass all servo channels through SITL |
+| `TKOFF_THR_MINACC` | 0 | No acceleration check before throttle-up |
+| `TKOFF_THR_MINSPD` | 0 | No GPS speed check before throttle-up |
+| `GROUND_STEER_ALT` | 5 | Ground steering active below 5 m AGL |
 
-To reset parameters to defaults (e.g. after flashing new firmware):
+### TRACKING parameters
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `TRAK_ROLL_P` | 200 | cd per degree of horizontal error |
+| `TRAK_ROLL_I` | 10 | roll integral |
+| `TRAK_ROLL_D` | 5 | roll derivative |
+| `TRAK_PTCH_P` | 100 | cd per degree of vertical error |
+| `TRAK_PTCH_I` | 500 | pitch integral |
+| `TRAK_PTCH_D` | 0 | pitch derivative |
+| `TRACKING_MAX_DEG` | 3.0 | max roll/pitch delta at full-scale error ±1 (deg) |
+| `TRACKING_DBAND` | 0.573 | error deadband before PID (deg, ~0.01 rad) |
+| `TRACKING_TIMEOUT` | 1000 | signal loss timeout before holding level (ms) |
+
+### DREF mapping (xplane_plane.json)
+
+The firmware embeds `xplane_plane.json` which maps servo channels to X-Plane
+DREFs via `override_joystick`:
+
+| Channel | DREF | Type |
+|---------|------|------|
+| CH1 (aileron) | `sim/joystick/yoke_roll_ratio` | angle (−1…+1) |
+| CH2 (elevator) | `sim/joystick/yoke_pitch_ratio` | angle_neg (inverted) |
+| CH3 (throttle) | `sim/flightmodel/engine/ENGN_thro_use[0]` | range (0…1) |
+| CH4 (rudder) | `sim/joystick/yoke_heading_ratio` | angle (−1…+1) |
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| pppd "Peer not responding" | LCP echo not disabled | Add `lcp-echo-interval 0` to pppd command |
+| pppd connects but X-Plane gets no data | Wrong IP in X-Plane net config | Set send IP to `10.0.0.2`, port `49001` |
+| QGC shows no GPS | EKF not converged | Check `SIM_OPOS_*` params match X-Plane location; ensure X-Plane unpaused |
+| Controls don't move in X-Plane | Override DREFs timed out | Firmware resends overrides every ~1 s automatically |
+| Throttle stays at 0 when armed | RANGE DREFs zeroed when disarmed | This is by design — arm first |
+| "Waiting for RC" / won't arm | Failsafe active | Verify `THR_FAILSAFE 0` is loaded; reset params if needed |
+| Takeoff doesn't start in AUTO | Throttle gate not cleared | Verify `TKOFF_THR_MINSPD 0`, `TKOFF_THR_MINACC 0` |
+| Build fails `redefinition of 'param_union'` | Spurious MAVLink headers in source tree | Run `python3 fix_mavlink_headers.py` then `./waf distclean && ./waf configure --board fmuv3-hil && ./waf plane` |
+
+---
+
+## Build Firmware
+
+If you need to rebuild from source:
 
 ```bash
-# In MAVProxy console
+cd /path/to/ardupilot
+
+# Configure board fmuv3-hil
+./waf configure --board fmuv3-hil
+
+# Build ArduPlane
+./waf plane
+
+# Flash via uploader
+python Tools/scripts/uploader.py build/fmuv3-hil/bin/arduplane
+```
+
+### Patches required before building (after clone or submodule reset)
+
+Run `fix_mavlink_headers.py` to apply two fixes at once:
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| **1** | `libraries/GCS_MAVLink/include/` in source tree (untracked) → `redefinition of 'param_union'` | Remove the directory |
+| **2** | `TRACKING_MESSAGE` (ID 11045) absent from upstream `ardupilotmega.xml` → message silently dropped by `mavlink_get_msg_entry()` | Apply `fix_mavlink_tracking_message.patch` to the mavlink submodule |
+
+```bash
+# Run from ardupilot root
+python3 fix_mavlink_headers.py
+
+# Check status only (no changes)
+python3 fix_mavlink_headers.py --check
+
+# Then rebuild
+./waf distclean
+./waf configure --board fmuv3-hil
+./waf plane
+```
+
+Patch file: [`fix_mavlink_tracking_message.patch`](fix_mavlink_tracking_message.patch)
+
+---
+
+## Reset parameters
+
+If the Pixhawk has stale parameters from a previous firmware:
+
+```
+# In QGC: Parameters → Tools → Reset all to defaults
+# Or via MAVLink console:
 param set FORMAT_VERSION 0
 reboot
 ```
@@ -218,6 +290,7 @@ reboot
 
 ## Stopping
 
-1. `Ctrl+C` in the `mavlink_xplane.py` terminal.
-2. Close QGroundControl.
-3. `Ctrl+C` in the MAVProxy terminal (or `quit` in the MAVProxy console).
+1. Disarm via QGC.
+2. Pause X-Plane (`P`).
+3. `Ctrl+C` the `pppd` terminal.
+4. Close QGroundControl.

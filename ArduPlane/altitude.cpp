@@ -34,7 +34,7 @@ void Plane::check_home_alt_change(void)
     if (home_alt_cm != auto_state.last_home_alt_cm && hal.util->get_soft_armed()) {
         // cope with home altitude changing
         const int32_t alt_change_cm = home_alt_cm - auto_state.last_home_alt_cm;
-        fix_terrain_WP(next_WP_loc, __LINE__);
+        fix_terrain_WP(next_WP_loc, __AP_LINE__);
 
         // reset TECS to force the field elevation estimate to reset
         TECS_controller.offset_altitude(alt_change_cm * 0.01f);
@@ -412,11 +412,11 @@ void Plane::check_fbwb_altitude(void)
     // taking fence max and min altitude (with margin)
     const uint8_t enabled_fences = plane.fence.get_enabled_fences();
     if ((enabled_fences & AC_FENCE_TYPE_ALT_MIN) != 0) {
-        min_alt_cm = plane.fence.get_safe_alt_min_m()*100.0;
+        min_alt_cm = plane.fence.get_relative_safe_alt_min_m()*100.0;
         should_check_min = true;
     }
     if ((enabled_fences & AC_FENCE_TYPE_ALT_MAX) != 0) {
-        max_alt_cm = plane.fence.get_safe_alt_max_m()*100.0;
+        max_alt_cm = plane.fence.get_relative_safe_alt_max_m()*100.0;
         should_check_max = true;
     }
 #endif

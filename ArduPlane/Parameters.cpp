@@ -1279,6 +1279,139 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("GUIDED_TIMEOUT", 40, ParametersG2, guided_timeout, 3.0f),
 
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_roll_pid,  "TRK_ROLL_", 42, ParametersG2, AC_PID),
+
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_pitch_pid, "TRK_PTCH_", 43, ParametersG2, AC_PID),
+
+    // @Param: TRK_MAX_DEG
+    // @DisplayName: Tracking mode max delta angle
+    // @Description: Maximum roll/pitch angle commanded when errorx/errory is at full scale (±1). The normalised tracking error is multiplied by this value before being passed to the PID controllers.
+    // @Units: deg
+    // @Range: 1 90
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_MAX_DEG", 44, ParametersG2, tracking_max_deg, 30.0f),
+
+    // @Param: TRK_DBAND
+    // @DisplayName: Tracking mode error deadband
+    // @Description: Tracking errors smaller than this angle are treated as zero. Prevents integrator wind-up when the target is nearly centred.
+    // @Units: deg
+    // @Range: 0 5
+    // @Increment: 0.05
+    // @User: Advanced
+    AP_GROUPINFO("TRK_DBAND", 45, ParametersG2, tracking_deadband_deg, 0.573f),
+
+    // @Param: TRK_TIMEOUT
+    // @DisplayName: Tracking mode signal timeout
+    // @Description: If no TRACKING MAVLink message is received within this period the PIDs are reset and roll/pitch commands are zeroed until the signal returns.
+    // @Units: ms
+    // @Range: 100 5000
+    // @Increment: 100
+    // @User: Advanced
+    AP_GROUPINFO("TRK_TIMEOUT", 46, ParametersG2, tracking_timeout_ms, 1000),
+
+    // @Param: TRK_PITCH_OFFSET
+    // @DisplayName: Tracking mode pitch offset
+    // @Description: Constant pitch bias (deg) added to the PID setpoint in TRACKING mode. Positive values pitch the nose up; negative values pitch it down. Useful to compensate for camera mounting angle or trim the glide slope toward the target.
+    // @Units: deg
+    // @Range: -30 30
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_PITCH_OFFSET", 47, ParametersG2, tracking_pitch_offset, 3.0f),
+
+    // @Param: TRK_TERM_ALT
+    // @DisplayName: Tracking terminal phase altitude
+    // @Description: AGL altitude (m) below which TRACKING mode applies full throttle for maximum terminal speed. Set to 0 to disable (normal throttle management always). Set to e.g. 30 for a 30m terminal phase.
+    // @Units: m
+    // @Range: 0 200
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_TERM_ALT", 48, ParametersG2, tracking_term_alt, 0.0f),
+
+    // @Param: TRK_TERM_PTCH
+    // @DisplayName: Tracking terminal pitch-down compensation
+    // @Description: Additional pitch-down bias (deg) added to the PID setpoint during the terminal phase (when AGL < TRK_TERM_ALT). Compensates for the nose-up pitching moment caused by full throttle. Positive values pitch the nose down. Tune by observing nose-up tendency at full throttle.
+    // @Units: deg
+    // @Range: 0 20
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_TERM_PTCH", 49, ParametersG2, tracking_term_pitch, 0.0f),
+
+    // @Param: TRK_APP_SPD
+    // @DisplayName: Tracking approach airspeed
+    // @Description: Target airspeed (m/s) during the approach phase of TRACKING mode. A simple P-controller adjusts throttle to maintain this speed, giving consistent time-of-flight and predictable impact. Set 0 to disable (open-loop TRIM_THROTTLE). Typical value: 20–30 m/s. Banking reduces the target by 20% to prevent overspeed in turns.
+    // @Units: m/s
+    // @Range: 0 50
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_APP_SPD", 50, ParametersG2, tracking_app_spd, 0.0f),
+
+    // @Param: TRK_SETTLE_S
+    // @DisplayName: Tracking throttle settle time
+    // @Description: Seconds to hold TRIM_THROTTLE after entering TRACKING mode or re-acquiring lock before enabling airspeed control. Allows the aircraft to stabilise attitude before the speed controller takes over. Default 2 s.
+    // @Units: s
+    // @Range: 0 10
+    // @Increment: 0.5
+    // @User: Standard
+    AP_GROUPINFO("TRK_SETTLE_S", 51, ParametersG2, tracking_settle_s, 2.0f),
+
+    // @Param: TRK_TGT_ALT
+    // @DisplayName: Tracking target MSL altitude
+    // @Description: MSL altitude (m) of the target. Terminal phase activates when (current_alt_msl - TRK_TGT_ALT) <= TRK_TERM_ALT. Set to 0 if unused.
+    // @Units: m
+    // @Range: -500 5000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_ALT", 55, ParametersG2, tracking_target_alt_msl, 744.0f),
+
+    // @Param: TRK_TGT_LAT
+    // @DisplayName: Tracking target latitude
+    // @Description: Latitude of the target in decimal degrees. Used for future target-relative guidance.
+    // @Units: deg
+    // @Range: -90 90
+    // @Increment: 0.000001
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_LAT", 56, ParametersG2, tracking_target_lat, -6.897434f),
+
+    // @Param: TRK_TGT_LON
+    // @DisplayName: Tracking target longitude
+    // @Description: Longitude of the target in decimal degrees. Used for future target-relative guidance.
+    // @Units: deg
+    // @Range: -180 180
+    // @Increment: 0.000001
+    // @User: Standard
+    AP_GROUPINFO("TRK_TGT_LON", 57, ParametersG2, tracking_target_lon, 107.566887f),
+
+    // @Param: TRK_THR_LEAD
+    // @DisplayName: Kalman prediction horizon
+    // @Description: Look-ahead time (s) for the Kalman-filtered pitch error. The filter estimates pitch_err and its rate; throttle sees pitch_err + rate * TRK_THR_LEAD, reducing lag on fast-diving targets. Set 0 to use the filtered value directly with no look-ahead.
+    // @Units: s
+    // @Range: 0 0.5
+    // @Increment: 0.05
+    // @User: Advanced
+    AP_GROUPINFO("TRK_THR_LEAD", 58, ParametersG2, tracking_throt_lead, 0.1f),
+
+    // @Param: TRK_KF_Q
+    // @DisplayName: Kalman process noise (pitch rate)
+    // @Description: Process noise variance for the pitch-error rate state in the throttle Kalman filter. Higher values make the filter track rapid pitch-rate changes faster at the cost of more noise in the throttle command. Lower values give a smoother but more lagged estimate.
+    // @Range: 0.001 10.0
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("TRK_KF_Q", 59, ParametersG2, tracking_kf_q, 0.1f),
+
+    // @Param: TRK_KF_R
+    // @DisplayName: Kalman measurement noise (pitch error)
+    // @Description: Measurement noise variance for the observed pitch error fed into the throttle Kalman filter. Increase if AHRS pitch is noisy; decrease to trust the measurement more and respond faster.
+    // @Range: 0.0001 1.0
+    // @Increment: 0.001
+    // @User: Advanced
+    AP_GROUPINFO("TRK_KF_R", 60, ParametersG2, tracking_kf_r, 0.01f),
+
+    // @Path: ../libraries/AC_PID/AC_PID.cpp
+    AP_SUBGROUPINFO(tracking_throt_pid, "TRK_THR_", 54, ParametersG2, AC_PID),
+
 #if AP_RANGEFINDER_ENABLED
     // @Param: RNGFND_LND_DIST
     // @DisplayName: Rangefinder landing engagement distance

@@ -1,0 +1,25 @@
+# XPlane DREF map for flying-wing elevon aircraft (e.g. FX-61 Phantom)
+# ArduPilot plane-elevon mixes CH1/CH2 before output:
+#   CH1 = right elevon PWM (pre-mixed by ArduPilot)
+#   CH2 = left elevon PWM  (pre-mixed by ArduPilot)
+#   CH3 = throttle
+#
+# Demix back to roll/pitch ratios and feed X-Plane via override_joystick:
+#   roll  = (CH1 - CH2) / 1000          → yoke_roll_ratio
+#   pitch = (CH1 + CH2 - 3000) / 1000   → yoke_pitch_ratio (negated for X-Plane sign)
+
+{
+    "settings" : { "debug" : 0 },
+
+    "sim/operation/override/override_joystick"  : { "type" : "fixed", "value" : 1 },
+    "sim/operation/override/override_throttles" : { "type" : "fixed", "value" : 1 },
+
+    # roll: (CH1 - CH2) / 1000 → -1 to +1
+    "sim/joystick/yoke_roll_ratio"  : { "type" : "elevon_roll",      "range" : 1, "channel" : 1, "channel2" : 2 },
+
+    # pitch: negated because X-Plane yoke_pitch_ratio sign is opposite ArduPilot
+    "sim/joystick/yoke_pitch_ratio" : { "type" : "elevon_pitch_neg", "range" : 1, "channel" : 1, "channel2" : 2 },
+
+    # throttle: CH3 PWM 1000-2000 → 0.0 to 1.0
+    "sim/flightmodel/engine/ENGN_thro_use[0]" : { "type" : "range", "range" : 1, "channel" : 3 }
+}

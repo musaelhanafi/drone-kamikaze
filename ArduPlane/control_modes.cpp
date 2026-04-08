@@ -88,6 +88,9 @@ Mode *Plane::mode_from_mode_num(const enum Mode::Number num)
         ret = &mode_autoland;
         break;
 #endif //MODE_AUTOLAND_ENABLED
+    case Mode::Number::TRACKING:
+        ret = &mode_tracking;
+        break;
     case Mode::Number::THERMAL:
 #if HAL_SOARING_ENABLED
         ret = &mode_thermal;
@@ -114,7 +117,7 @@ void RC_Channels_Plane::read_mode_switch()
 
 void RC_Channel_Plane::mode_switch_changed(modeswitch_pos_t new_pos)
 {
-    if (new_pos < 0 || (uint8_t)new_pos > plane.num_flight_modes) {
+    if (new_pos < 0 || (uint8_t)new_pos >= plane.num_flight_modes) {
         // should not have been called
         return;
     }

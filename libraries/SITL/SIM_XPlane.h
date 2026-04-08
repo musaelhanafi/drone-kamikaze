@@ -22,7 +22,11 @@
 
 #if AP_SIM_XPLANE_ENABLED
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
+#include <AP_HAL/utility/Socket.h>
+#else
 #include <AP_HAL/utility/Socket_native.h>
+#endif
 #include <AP_Filesystem/AP_Filesystem.h>
 
 #include "SIM_Aircraft.h"
@@ -66,16 +70,27 @@ private:
     uint16_t xplane_port = 49000;
     uint16_t bind_port = 49001;
     // udp socket, input and output
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
+    SocketAPM socket_in{true};
+    SocketAPM socket_out{true};
+#else
     SocketAPM_native socket_in{true};
     SocketAPM_native socket_out{true};
+#endif
 
     uint64_t time_base_us;
     uint32_t last_data_time_ms;
+    uint32_t last_dref_ms;
+    bool     last_armed;
     Vector3d position_zero;
     Vector3f accel_earth;
     bool connected = false;
     uint32_t xplane_frame_time;
     uint64_t seen_mask;
+
+    // receive buffer as class member to avoid large stack frame in receive_data()
+    // X-Plane DATA@ is UDP — max payload fits in one Ethernet MTU (1472 bytes)
+    uint8_t _recv_buf[1500];
 
     struct {
         uint32_t last_report_ms;
@@ -84,9 +99,13 @@ private:
     } report;
 
     enum class DRefType {
-        ANGLE = 0,
-        RANGE = 1,
-        FIXED = 2,
+        ANGLE          = 0,
+        RANGE          = 1,
+        FIXED          = 2,
+        ANGLE_NEG      = 3,  // inverted angle
+        ELEVON_ROLL    = 4,  // (ch1-ch2)/1000 * range  — demix roll from two elevon servos
+        ELEVON_PITCH   = 5,  // (ch1+ch2-3000)/1000 * range
+        ELEVON_PITCH_NEG = 6,// negated pitch mix
     };
 
     struct DRef {
@@ -94,12 +113,16 @@ private:
         char *name;
         DRefType type;
         uint8_t channel;
+        uint8_t channel2 = 0;   // second channel for ELEVON_* types
         float range;
         float fixed_value;
+        float last_sent = NAN;   // last value sent — skip if change < deadband
     };
 
     // list of DRefs;
     struct DRef *drefs;
+    struct DRef *dref_cursor = nullptr;  // round-robin pointer for bandwidth-limited send
+    uint32_t dref_fixed_count = 0;       // counter for periodic FIXED DREF resend
     uint32_t dref_debug;
 
     enum class JoyType {

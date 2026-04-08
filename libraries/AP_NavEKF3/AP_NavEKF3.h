@@ -179,6 +179,9 @@ public:
     // return the innovation consistency test ratios
     bool getVariances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar, Vector2f &offset) const;
 
+    // return 1-sigma position and velocity uncertainty from the EKF state error covariance matrix P
+    bool getPosVelUncertainty(float &pos_horiz_m, float &pos_vert_m, float &vel_m_s) const;
+
     // get a source's velocity innovations
     // returns true on success and results are placed in innovations and variances arguments
     bool getVelInnovationsAndVariancesForSource(AP_NavEKF_Source::SourceXY source, Vector3f &innovations, Vector3f &variances) const WARN_IF_UNUSED;
@@ -361,6 +364,9 @@ public:
     // check if configured to use GPS for horizontal position estimation
     bool configuredToUseGPSForPosXY(void) const;
     
+    // check if configured to use GPS for position estimation
+    bool configuredToUseGPSForPos(void) const;
+
     // Writes the default equivalent airspeed and 1-sigma uncertainty in m/s to be used in forward flight if a measured airspeed is required and not available.
     void writeDefaultAirSpeed(float airspeed, float uncertainty);
 

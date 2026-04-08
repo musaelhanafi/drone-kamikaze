@@ -1351,6 +1351,28 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             raise NotAchievedException("Fence not enabled after RC fail")
         self.do_fence_disable() # Ensure the fence is disabled after test
 
+    def NoShortFailsafe(self):
+        '''No short failsafe in auto mode'''
+        self.set_parameters({
+            "FS_GCS_ENABL": 1, # GCS failsafe : heartbeat
+            "FS_SHORT_ACTN": 0, # Short failsafe action: ignore if in auto|guided|loiter, otherwise circle
+            "FS_LONG_ACTN": 0, # Long failsafe action: continue
+            "RTL_AUTOLAND": 1,
+            "MAV_GCS_SYSID": self.mav.source_system,
+        })
+        self.start_flying_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 30),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 800, 0, 0),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 800, 800, 0),
+        ])
+        self.wait_current_waypoint(2)
+        self.progress("Disconnecting GCS")
+        self.set_heartbeat_rate(0)
+        self.delay_sim_time(10)
+        self.wait_mode("AUTO", timeout=10)
+        self.set_heartbeat_rate(self.speedup)
+        self.fly_home_land_and_disarm()
+
     def GCSFailsafe(self):
         '''Ensure Long-Failsafe works on GCS loss'''
         self.start_subtest("Test Failsafe: RTL")
@@ -3249,6 +3271,56 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         '''Test InertialLabs EAHRS support'''
         self.fly_external_AHRS("ILabs", 5)
 
+    def KebniSensAItionExternalINS(self):
+        '''Test Kebni SensAItion External INS mode. Or in Ardupilot terminology, ExternalAHRS mode.'''
+        self.set_parameters({
+            "EAHRS_OPTIONS": 4  # INS mode -> Bit 2 set
+        })
+        self.fly_external_AHRS("SensAItionINS", 11)
+
+    def KebniSensAItionExternalIMU(self):
+        '''Test Kebni SensAItion External IMU-only mode'''
+        self.customise_SITL_commandline(["--serial4=sim:SensAItion"])
+
+        self.set_parameters({
+            # External AHRS configuration (IMU-only mode at 1000Hz)
+            "EAHRS_TYPE": 11,         # SensAItion External AHRS type
+            "EAHRS_SENSORS": 14,      # IMU(2) + Baro(4) + Compass(8) = 14
+            "EAHRS_OPTIONS": 0,      # Legacy IMU mode
+            "SERIAL4_PROTOCOL": 36,   # External AHRS protocol
+            "SERIAL4_BAUD": 460800,   # 460800 baud
+            "GPS1_TYPE": 1,           # Use SITL GPS for position data
+            "AHRS_EKF_TYPE": 3,       # Internal EKF3 (fed by external IMU)
+            "EK3_PRIMARY": 0,         # Use external IMU (SensAItion) as primary
+            "EK3_OPTIONS": 2,         # Disable EK3 lane switching
+
+            # Ultra high-rate INS filtering
+            "INS_GYR_CAL": 1,
+        })
+        self.reboot_sitl()
+        self.delay_sim_time(10)
+
+        self.progress("Running accelcal")
+        self.run_cmd(
+            mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
+            p5=4,
+            timeout=10,
+        )
+
+        # Wait for EKF3 with external IMU to converge
+        expected_flags = (mavutil.mavlink.ESTIMATOR_ATTITUDE |
+                          mavutil.mavlink.ESTIMATOR_VELOCITY_HORIZ |
+                          mavutil.mavlink.ESTIMATOR_VELOCITY_VERT |
+                          mavutil.mavlink.ESTIMATOR_POS_HORIZ_REL |
+                          mavutil.mavlink.ESTIMATOR_POS_HORIZ_ABS |
+                          mavutil.mavlink.ESTIMATOR_POS_VERT_ABS)
+        self.wait_ekf_flags(expected_flags, 0, timeout=60)
+
+        self.wait_ready_to_arm(timeout=120)
+        self.arm_vehicle()
+        self.fly_mission("ap1.txt", mission_timeout=120)
+        self.disarm_vehicle(force=True)
+
     def GpsSensorPreArmEAHRS(self):
         '''Test pre-arm checks related to EAHRS_SENSORS using the MicroStrain7 driver'''
         self.customise_SITL_commandline(["--serial4=sim:MicroStrain7"])
@@ -4522,7 +4594,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
                 raise NotAchievedException(
                     "New home not where it should be (dist=%f) (want=%s) (got=%s)" %
                     (delta, str(new_home), str(post_reboot_home)))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -7935,6 +8007,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.ThrottleFailsafe,
             self.NeedEKFToArm,
             self.ThrottleFailsafeFence,
+            self.NoShortFailsafe,
             self.SoaringClimbRate,
             self.TestFlaps,
             self.DO_CHANGE_SPEED,
@@ -7998,6 +8071,8 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.MicroStrainEAHRS5,
             self.MicroStrainEAHRS7,
             self.InertialLabsEAHRS,
+            self.KebniSensAItionExternalINS,
+            self.KebniSensAItionExternalIMU,
             self.GpsSensorPreArmEAHRS,
             self.Deadreckoning,
             self.EKFlaneswitch,
@@ -8096,7 +8171,74 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.ScriptedArmingChecksAppletRally,
             self.PlaneFollowAppletSanity,
             self.PreflightRebootComponent,
+            self.UTMGlobalPosition,
+            self.UTMGlobalPositionWaypoint,
         ]
+
+    def UTMGlobalPositionWaypoint(self):
+        '''test UTM_GLOBAL_POSITION waypoint fields in AUTO and GUIDED'''
+        self.start_flying_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 50),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 500, 0, 50),
+            (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
+        ])
+        # seq 0 = home, seq 1 = TAKEOFF, seq 2 = WAYPOINT (500m north)
+        wp = self.assert_fetch_mission_item_int(1, 1, 2, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+        self.wait_current_waypoint(2, timeout=120)
+
+        # epsilon=1 allows for 1-unit (0.11m) rounding from AP's internal coordinate conversion
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "next_lat": wp.x,
+            "next_lon": wp.y,
+        }, poll=True, epsilon=1)
+        if not (m.flags & mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_NEXT_WAYPOINT_AVAILABLE):
+            raise NotAchievedException(f"AUTO: NEXT_WAYPOINT_AVAILABLE not set (flags=0x{m.flags:x})")
+
+        # GUIDED mode - DO_REPOSITION while already airborne
+        home = self.poll_message("HOME_POSITION")
+        target_lat = home.latitude + 10000
+        target_lon = home.longitude
+        self.change_mode("GUIDED")
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            p5=target_lat,
+            p6=target_lon,
+            p7=50,
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        )
+        self.delay_sim_time(1)
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "next_lat": target_lat,
+            "next_lon": target_lon,
+        }, poll=True, epsilon=1)
+        if not (m.flags & mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_NEXT_WAYPOINT_AVAILABLE):
+            raise NotAchievedException(f"GUIDED: NEXT_WAYPOINT_AVAILABLE not set (flags=0x{m.flags:x})")
+        self.fly_home_land_and_disarm()
+
+    def UTMGlobalPosition(self):
+        '''test UTM_GLOBAL_POSITION message sending'''
+        self.wait_ready_to_arm()
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "flight_state": mavutil.mavlink.UTM_FLIGHT_STATE_GROUND,
+        }, poll=True)
+        if all(b == 0 for b in m.uas_id):
+            raise NotAchievedException("UAS ID is all zeros")
+        expected_flags = (
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_UAS_ID_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_POSITION_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_ALTITUDE_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_RELATIVE_ALTITUDE_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_HORIZONTAL_VELO_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_VERTICAL_VELO_AVAILABLE
+        )
+        if m.flags & expected_flags != expected_flags:
+            raise NotAchievedException(
+                f"Expected flags 0x{expected_flags:x}, got 0x{m.flags:x}")
+        self.takeoff(alt=10, mode="TAKEOFF")
+        self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "flight_state": mavutil.mavlink.UTM_FLIGHT_STATE_AIRBORNE,
+        }, poll=True)
+        self.fly_home_land_and_disarm()
 
     def tests1c(self):
         '''kind of reserved for flapping tests which we still have hopes for'''

@@ -101,15 +101,11 @@ LiPo batteries.
 
 The correct battery setting parameters are set by default and are:
 
-:ref:`BATT_MONITOR<BATT_MONITOR>` = 4
-
-:ref:`BATT_VOLT_PIN<BATT_VOLT_PIN__AP_BattMonitor_Analog>` 10
-
-:ref:`BATT_CURR_PIN<BATT_CURR_PIN__AP_BattMonitor_Analog>` 11
-
-:ref:`BATT_VOLT_MULT<BATT_VOLT_MULT__AP_BattMonitor_Analog>` 11.05
-
-:ref:`BATT_AMP_PERVLT<BATT_AMP_PERVLT__AP_BattMonitor_Analog>` 50
+BATT_MONITOR=4
+BATT_VOLT_PIN=10
+BATT_CURR_PIN=11
+BATT_VOLT_MULT=11.05
+BATT_AMP_PERVLT=50
 
 ## Compass
 
@@ -117,11 +113,11 @@ The JHEMCUF405Wing does not have a built-in compass, but you can attach an exter
 
 ## VTX power control
 
-GPIO 81 controls the VTX BEC output to pins marked "9V". Setting this GPIO high removes voltage supply to pins. ``Relay2`` controls this GPIO by default.
+GPIO 81 controls the VTX BEC output to pins marked "9V". Setting this GPIO high removes voltage supply to pins. `Relay2` controls this GPIO by default.
 
 ## Camera Control
 
-GPIO 82 switches the C1 and C2 camera inputs. ``Relay 3`` controls this GPIO by default.
+GPIO 82 switches the C1 and C2 camera inputs. `Relay 3` controls this GPIO by default.
 
 ## Loading Firmware
 

@@ -1030,7 +1030,7 @@ bool AP_AHRS::_airspeed_EAS(float &airspeed_ret, AirspeedEstimateType &airspeed_
     if (_should_use_airspeed_sensor(idx)) {
         airspeed_ret = AP::airspeed()->get_airspeed(idx);
 
-        if (_wind_max > 0 && AP::gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
+        if (_wind_max > 0 && AP::gps().status() >= AP_GPS_FixType::FIX_2D) {
             // constrain the airspeed by the ground speed
             // and AHRS_WIND_MAX
             const float gnd_speed = AP::gps().ground_speed();
@@ -1549,8 +1549,11 @@ void AP_AHRS::use_recorded_origin_maybe()
         return;
     }
 
-    // only set if not using GPS
-    if (using_gps()) {
+    // don't use recorded origin if the configured EKF uses GPS for
+    // position — GPS will set a correct origin when it gets
+    // a fix. Using the recorded origin here would prevent GPS from
+    // setting it later (EKF origin is immutable once set).
+    if (using_gps_for_pos()) {
         return;
     }
 
@@ -1976,7 +1979,7 @@ void AP_AHRS::get_relative_position_D_home(float &posD) const
 #if AP_GPS_ENABLED
         const auto &gps = AP::gps();
         if (_gps_use == GPSUse::EnableWithHeight &&
-            gps.status() >= AP_GPS::GPS_OK_FIX_3D) {
+            gps.status() >= AP_GPS_FixType::FIX_3D) {
             posD = (_home.alt - gps.location().alt) * 0.01;
             return;
         }
@@ -2155,7 +2158,7 @@ AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
         if (hal.util->get_soft_armed() &&
             (_gps_use != GPSUse::Disable) &&
             should_use_gps &&
-            AP::gps().status() >= AP_GPS::GPS_OK_FIX_3D &&
+            AP::gps().status() >= AP_GPS_FixType::FIX_3D &&
             (!filt_state.flags.using_gps || !filt_state.flags.horiz_pos_abs)) {
             /*
                If the EKF is not fusing GPS or doesn't have a 2D fix and we have a 3D GPS lock,
@@ -2183,7 +2186,7 @@ AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
         if (!filt_state.flags.horiz_vel ||
             (!filt_state.flags.horiz_pos_abs && !filt_state.flags.horiz_pos_rel)) {
             if ((!AP::compass().use_for_yaw()) &&
-                AP::gps().status() >= AP_GPS::GPS_OK_FIX_3D &&
+                AP::gps().status() >= AP_GPS_FixType::FIX_3D &&
                 AP::gps().ground_speed() < 2) {
                 /*
                   special handling for non-compass mode when sitting
@@ -3268,6 +3271,19 @@ bool AP_AHRS::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3
     return false;
 }
 
+// get 1-sigma position and velocity uncertainty from the EKF state error covariance matrix P
+bool AP_AHRS::get_pos_vel_uncertainty(float &pos_horiz_m, float &pos_vert_m, float &vel_m_s) const
+{
+    switch (active_EKF_type()) {
+#if HAL_NAVEKF3_AVAILABLE
+    case EKFType::THREE:
+        return EKF3.getPosVelUncertainty(pos_horiz_m, pos_vert_m, vel_m_s);
+#endif
+    default:
+        return false;
+    }
+}
+
 // get a source's velocity innovations.  source should be from 0 to 7 (see AP_NavEKF_Source::SourceXY)
 // returns true on success and results are placed in innovations and variances arguments
 bool AP_AHRS::get_vel_innovations_and_variances_for_source(uint8_t source, Vector3f &innovations, Vector3f &variances) const
@@ -3598,6 +3614,34 @@ bool AP_AHRS::using_gps(void) const
         return true;
     }
     // since there is no default case above, this is unreachable
+    return true;
+}
+
+// check if GPS is configured as the position source for
+// the configured EKF type
+bool AP_AHRS::using_gps_for_pos(void) const
+{
+    switch (active_EKF_type()) {
+#if HAL_NAVEKF2_AVAILABLE
+    case EKFType::TWO:
+        return EKF2.configuredToUseGPSForPosXY();
+#endif
+#if HAL_NAVEKF3_AVAILABLE
+    case EKFType::THREE:
+        return EKF3.configuredToUseGPSForPos();
+#endif
+#if AP_AHRS_DCM_ENABLED
+    case EKFType::DCM:
+        return _gps_use != GPSUse::Disable;
+#endif
+#if AP_AHRS_SIM_ENABLED
+    case EKFType::SIM:
+#endif
+#if AP_AHRS_EXTERNAL_ENABLED
+    case EKFType::EXTERNAL:
+#endif
+        return true;
+    }
     return true;
 }
 

@@ -145,7 +145,7 @@ private:
 #if AP_SUB_RC_ENABLED  
     // flight modes convenience array
     AP_Int8 *flight_modes;
-    const uint8_t num_flight_modes = 6;
+    static constexpr uint8_t num_flight_modes = 6;
 #endif
 
     AP_LeakDetector leak_detector;
@@ -509,6 +509,7 @@ private:
     JSButton* get_button(uint8_t index);
     void default_js_buttons(void);
     void clear_input_hold();
+    bool jsbutton_function_is_assigned(JSButton::button_function_t function);
     void read_barometer(void);
     void init_rangefinder(void);
     void read_rangefinder(void);
@@ -579,6 +580,9 @@ private:
 #if AP_RELAY_ENABLED
     void update_relay_pins();
 #endif
+
+    void update_actuators_from_jsbuttons();
+    void update_lights_from_rcin();
     bool handle_do_motor_test(mavlink_command_int_t command);
     bool init_motor_test();
     bool verify_motor_test();

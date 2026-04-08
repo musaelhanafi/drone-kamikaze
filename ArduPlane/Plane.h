@@ -216,7 +216,7 @@ private:
 
     // flight modes convenience array
     AP_Int8 *flight_modes = &g.flight_mode1;
-    const uint8_t num_flight_modes = 6;
+    static constexpr uint8_t num_flight_modes = 6;
 
 #if AP_RANGEFINDER_ENABLED
     AP_FixedWing::Rangefinder_State rangefinder_state;
@@ -964,6 +964,9 @@ private:
     void Log_Write_OFG_Guided();
     void Log_Write_Guided(void);
     void Log_Write_Nav_Tuning();
+#if AP_RANGEFINDER_ENABLED
+    void Log_Write_RFNS();
+#endif
     void Log_Write_Status();
     void Log_Write_RC(void);
     void Log_Write_Vehicle_Startup_Messages();

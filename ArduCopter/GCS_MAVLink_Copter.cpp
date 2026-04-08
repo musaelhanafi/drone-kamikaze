@@ -106,37 +106,9 @@ void GCS_MAVLINK_Copter::send_attitude_target()
         thrust);                // Collective thrust, normalized to 0 .. 1
 }
 
-void GCS_MAVLINK_Copter::send_position_target_global_int()
+bool GCS_MAVLINK_Copter::get_target_location(Location &target) const
 {
-    Location target;
-    if (!copter.flightmode->get_wp(target)) {
-        return;
-    }
-
-    // convert altitude frame to AMSL (this may use the terrain database)
-    if (!target.change_alt_frame(Location::AltFrame::ABSOLUTE)) {
-        return;
-    }
-    static constexpr uint16_t POSITION_TARGET_TYPEMASK_LAST_BYTE = 0xF000;
-    static constexpr uint16_t TYPE_MASK = POSITION_TARGET_TYPEMASK_VX_IGNORE | POSITION_TARGET_TYPEMASK_VY_IGNORE | POSITION_TARGET_TYPEMASK_VZ_IGNORE |
-                                          POSITION_TARGET_TYPEMASK_AX_IGNORE | POSITION_TARGET_TYPEMASK_AY_IGNORE | POSITION_TARGET_TYPEMASK_AZ_IGNORE |
-                                          POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
-    mavlink_msg_position_target_global_int_send(
-        chan,
-        AP_HAL::millis(), // time_boot_ms
-        MAV_FRAME_GLOBAL, // targets are always global altitude
-        TYPE_MASK, // ignore everything except the x/y/z components
-        target.lat, // latitude as 1e7
-        target.lng, // longitude as 1e7
-        target.alt * 0.01f, // altitude is sent as a float
-        0.0f, // vx
-        0.0f, // vy
-        0.0f, // vz
-        0.0f, // afx
-        0.0f, // afy
-        0.0f, // afz
-        0.0f, // yaw
-        0.0f); // yaw_rate
+    return copter.flightmode->get_wp(target);
 }
 
 void GCS_MAVLINK_Copter::send_position_target_local_ned()
@@ -622,7 +594,8 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_MAV_CMD_NAV_TAKEOFF(const mavlink_command_
 
         float takeoff_alt_m = packet.z;
 
-        if (!copter.flightmode->do_user_takeoff_U_m(takeoff_alt_m, is_zero(packet.param3))) {
+        const bool must_navigate = ((uint32_t(packet.param3) & NAV_TAKEOFF_FLAGS_HORIZONTAL_POSITION_NOT_REQUIRED) == 0);
+        if (!copter.flightmode->do_user_takeoff_U_m(takeoff_alt_m, must_navigate)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
@@ -1035,7 +1008,7 @@ void GCS_MAVLINK_Copter::handle_message_set_position_target_local_ned(const mavl
     if (!pos_ignore) {
         // convert to m
         pos_ned_m = Vector3p{packet.x, packet.y, packet.z};
-        // rotate to body-frame if necessary
+        // rotate to earth-frame if necessary
         if (packet.coordinate_frame == MAV_FRAME_BODY_NED ||
             packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
             pos_ned_m.xy() = copter.ahrs.body_to_earth2D_p(pos_ned_m.xy());
@@ -1063,7 +1036,7 @@ void GCS_MAVLINK_Copter::handle_message_set_position_target_local_ned(const mavl
             copter.mode_guided.hold_position();
             return;
         }
-        // rotate to body-frame if necessary
+        // rotate to earth-frame if necessary
         if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
             vel_ned_ms.xy() = copter.ahrs.body_to_earth2D(vel_ned_ms.xy());
         }
@@ -1073,7 +1046,7 @@ void GCS_MAVLINK_Copter::handle_message_set_position_target_local_ned(const mavl
     Vector3f accel_ned_mss;
     if (!acc_ignore) {
         accel_ned_mss = Vector3f{packet.afx, packet.afy, packet.afz};
-        // rotate to body-frame if necessary
+        // rotate to earth-frame if necessary
         if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
             accel_ned_mss.xy() = copter.ahrs.body_to_earth2D(accel_ned_mss.xy());
         }

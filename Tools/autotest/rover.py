@@ -727,7 +727,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 mavproxy.send('switch %u\n' % num)
                 self.wait_mode(expected)
             self.stop_mavproxy(mavproxy)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -1315,13 +1315,13 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 self.mav.mav.srcSystem = 1
                 self.arm_vehicle(timeout=5)
                 self.disarm_vehicle()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 comp_arm_exception = e
             self.mav.mav.srcSystem = old_srcSystem
             if comp_arm_exception is not None:
                 raise comp_arm_exception
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
         self.mav.mav.srcSystem = old_srcSystem
@@ -4968,7 +4968,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.wait_location(target, timeout=300)
             self.do_RTL()
             self.disarm_vehicle()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
         self.context_pop()
@@ -6649,6 +6649,39 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 "poll": True,
             })
 
+    def GPSForYaw(self):
+        '''Test consumption of heading from NMEA GPS and its propagation to ATTITUDE'''
+
+        SIM_GPS1_HDG_OFS = 30.0
+        self.set_parameters({
+            "EK3_SRC1_YAW": 3,
+            "GPS1_TYPE": 5,
+            "SIM_GPS1_TYPE": 5,
+            "SIM_GPS1_HDG": 1,
+            "GPS_AUTO_CONFIG": 0,
+            "SIM_GPS1_HDG_OFS": SIM_GPS1_HDG_OFS,
+        })
+        self.reboot_sitl()
+        # wait for the vehicle to be ready
+        self.wait_ready_to_arm()
+        # make sure we are getting both GPS_RAW_INT and SIMSTATE
+        simstate_m = self.assert_receive_message("SIMSTATE")
+        real_yaw_deg = math.degrees(simstate_m.yaw)
+        expected_yaw_deg = mavextra.wrap_180(real_yaw_deg + SIM_GPS1_HDG_OFS) # offset in the parameters, in degrees
+        # wait for GPS_RAW_INT to have a good fix
+        self.wait_gps_fix_type_gte(3, message_type="GPS_RAW_INT", verbose=True)
+
+        att_m = self.assert_receive_message("ATTITUDE")
+        achieved_yaw_deg = mavextra.wrap_180(math.degrees(att_m.yaw))
+
+        # ensure new reading propagated to ATTITUDE
+        try:
+            self.wait_heading(expected_yaw_deg)
+        except NotAchievedException as e:
+            raise NotAchievedException(
+                "Expected to get yaw consumed and at ATTITUDE (want %f got %f)" % (expected_yaw_deg, achieved_yaw_deg)
+            ) from e
+
     def TestWebServer(self, url):
         '''test active web server'''
         self.progress("Accessing webserver main page")
@@ -7283,6 +7316,82 @@ return update()
             if self.distance_to_home() > 2:
                 raise NotAchievedException("Did not get home!")
 
+    def start_driving_simple_relhome_mission(self, items):
+        '''uploads items, changes mode to AUTO, waits ready to arm and starts mission'''
+        self.upload_simple_relhome_mission(items)
+        self.set_current_waypoint(0, check_afterwards=False)
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.send_cmd(mavutil.mavlink.MAV_CMD_MISSION_START)
+
+    def send_do_reposition(self, target_lat, target_lon):
+        '''send MAV_CMD_DO_REPOSITION with integer lat/lon (degE7) to move Rover in GUIDED mode'''
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            p5=target_lat,
+            p6=target_lon,
+            p7=0,
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL,
+        )
+
+    def UTMGlobalPositionWaypoint(self):
+        '''test UTM_GLOBAL_POSITION waypoint fields in AUTO and GUIDED'''
+        self.start_driving_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 50, 0, 0),
+            (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
+        ])
+        # seq 0 = home, seq 1 = WAYPOINT (50m north)
+        wp = self.assert_fetch_mission_item_int(1, 1, 1, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+        self.wait_current_waypoint(1, timeout=30)
+
+        # epsilon=1 allows for 1-unit (0.11m) rounding from AP's internal coordinate conversion
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "next_lat": wp.x,
+            "next_lon": wp.y,
+        }, poll=True, epsilon=1)
+        if not (m.flags & mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_NEXT_WAYPOINT_AVAILABLE):
+            raise NotAchievedException(f"AUTO: NEXT_WAYPOINT_AVAILABLE not set (flags=0x{m.flags:x})")
+        self.change_mode('HOLD')
+        self.disarm_vehicle(force=True)
+
+        # GUIDED mode - DO_REPOSITION uses COMMAND_INT (integer lat/lon, no float precision loss)
+        self.change_mode("GUIDED")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        home = self.poll_message("HOME_POSITION")
+        target_lat = home.latitude + 10000
+        target_lon = home.longitude
+        self.send_do_reposition(target_lat, target_lon)
+        self.delay_sim_time(1)
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "next_lat": target_lat,
+            "next_lon": target_lon,
+        }, poll=True, epsilon=1)
+        if not (m.flags & mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_NEXT_WAYPOINT_AVAILABLE):
+            raise NotAchievedException(f"GUIDED: NEXT_WAYPOINT_AVAILABLE not set (flags=0x{m.flags:x})")
+        self.change_mode('HOLD')
+        self.disarm_vehicle(force=True)
+
+    def UTMGlobalPosition(self):
+        '''test UTM_GLOBAL_POSITION message sending'''
+        self.wait_ready_to_arm()
+        m = self.assert_received_message_field_values("UTM_GLOBAL_POSITION", {
+            "flight_state": mavutil.mavlink.UTM_FLIGHT_STATE_UNKNOWN,
+        }, poll=True)
+        if all(b == 0 for b in m.uas_id):
+            raise NotAchievedException("UAS ID is all zeros")
+        expected_flags = (
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_UAS_ID_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_POSITION_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_ALTITUDE_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_HORIZONTAL_VELO_AVAILABLE |
+            mavutil.mavlink.UTM_DATA_AVAIL_FLAGS_VERTICAL_VELO_AVAILABLE
+        )
+        if m.flags & expected_flags != expected_flags:
+            raise NotAchievedException(
+                f"Expected flags 0x{expected_flags:x}, got 0x{m.flags:x}")
+
     def AP_ROVER_AUTO_ARM_ONCE_ENABLED(self):
         '''test Rover arm-once-when-ready behaviour'''
         # do a little dance so we don't arm after setting the parameter:
@@ -7298,6 +7407,39 @@ return update()
             minimum_duration=10,
             timeout=30,
         ).run()
+
+    def GPSAntennaPositionOffset(self):
+        '''test GPS antenna position offset is applied'''
+        [SIM_GPS1_POS_X, SIM_GPS1_POS_Y, SIM_GPS1_POS_Z] = [1.0, 2.0, 3.0]
+        self.set_parameters({
+            "SIM_GPS1_POS_X": SIM_GPS1_POS_X,
+            "SIM_GPS1_POS_Y": SIM_GPS1_POS_Y,
+            "SIM_GPS1_POS_Z": SIM_GPS1_POS_Z,
+        })
+        self.wait_ready_to_arm()
+        gps_m = self.assert_receive_message("GPS_RAW_INT")
+        lat = math.degrees(math.radians(gps_m.lat)*1.0e-7)
+        lon = math.degrees(math.radians(gps_m.lon)*1.0e-7)
+        alt = gps_m.alt/1000.0
+        self.set_parameters({
+            "SIM_GPS1_POS_X": 0.0,
+            "SIM_GPS1_POS_Y": 0.0,
+            "SIM_GPS1_POS_Z": 0.0,
+        })
+        self.reboot_sitl()
+        self.wait_ready_to_arm()
+        gps_m = self.assert_receive_message("GPS_RAW_INT")
+
+        self.start_subsubtest("Check GPS position changes for altitude")
+        alt_with_offset = alt + SIM_GPS1_POS_Z
+        if abs(gps_m.alt/1000.0 - alt_with_offset) > 1:
+            raise NotAchievedException(f"Unexpected GPS altitude (want {alt_with_offset}, got {gps_m.alt})")
+
+        self.start_subsubtest("Check GPS position changes for latitude and longitude")
+        Horizontaldistance = mavextra.distance_from(gps_m, lat, lon)
+        expected_distance = math.sqrt(SIM_GPS1_POS_X**2 + SIM_GPS1_POS_Y**2)
+        if abs(Horizontaldistance - expected_distance) > 1:
+            raise NotAchievedException(f"Unexpected GPS position (want {expected_distance}, got {Horizontaldistance})")
 
     def tests(self):
         '''return list of all tests'''
@@ -7393,6 +7535,7 @@ return update()
             self.MAV_CMD_GET_HOME_POSITION,
             self.MAV_CMD_DO_FENCE_ENABLE,
             self.MAV_CMD_BATTERY_RESET,
+            self.GPSForYaw,
             self.NetworkingWebServer,
             self.NetworkingWebServerPPP,
             self.RTL_SPEED,
@@ -7411,6 +7554,9 @@ return update()
             self.ThrottleFailsafe,
             self.DriveEachFrame,
             self.AP_ROVER_AUTO_ARM_ONCE_ENABLED,
+            self.GPSAntennaPositionOffset,
+            self.UTMGlobalPosition,
+            self.UTMGlobalPositionWaypoint,
         ])
         return ret
 

@@ -294,7 +294,7 @@ class Telem(object):
             if self.port is not None:
                 try:
                     self.port.close() # might be reopening
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.port.connect(self.destination_address)
@@ -2490,7 +2490,7 @@ class TestSuite(abc.ABC):
                 pass
             except socket.error:
                 pass
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self.progress("Got unexpected exception (%s)" % str(type(e)))
                 pass
 
@@ -2819,6 +2819,8 @@ class TestSuite(abc.ABC):
                     if "#if AC_PRECLAND_ENABLED" in line:
                         continue
                     if "#if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED" in line:
+                        continue
+                    if "#if AP_RANGEFINDER_ENABLED" in line:
                         continue
                     if "#end" in line:
                         continue
@@ -3201,7 +3203,7 @@ class TestSuite(abc.ABC):
         self.stop_SITL()
         try:
             del self.valgrind_restart_customisations
-        except Exception:
+        except AttributeError:
             pass
         self.start_SITL(wipe=True)
         self.set_streamrate(self.sitl_streamrate())
@@ -3763,7 +3765,7 @@ class TestSuite(abc.ABC):
 
             self.run_cmd_enable_high_latency(False)
             self.assert_message_rate_hz("HIGH_LATENCY2", 5, mav=self.mav)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -4473,14 +4475,15 @@ class TestSuite(abc.ABC):
                                              check_context=False,
                                              ):
         if poll:
-            self.poll_message(message)
-        m = self.assert_receive_message(
-            message,
-            verbose=verbose,
-            very_verbose=very_verbose,
-            timeout=timeout,
-            check_context=check_context
-        )
+            m = self.poll_message(message)
+        else:
+            m = self.assert_receive_message(
+                message,
+                verbose=verbose,
+                very_verbose=very_verbose,
+                timeout=timeout,
+                check_context=check_context
+            )
         self.assert_message_field_values(m, fieldvalues, verbose=verbose, epsilon=epsilon)
         return m
 
@@ -6963,13 +6966,10 @@ class TestSuite(abc.ABC):
     def get_distance(loc1, loc2):
         """Get ground distance between two locations."""
         return TestSuite.get_distance_accurate(loc1, loc2)
-        # dlat = loc2.lat - loc1.lat
-        # try:
-        #     dlong = loc2.lng - loc1.lng
-        # except AttributeError:
-        #     dlong = loc2.lon - loc1.lon
 
-        # return math.sqrt((dlat*dlat) + (dlong*dlong)*TestSuite.longitude_scale(loc2.lat)) * 1.113195e5
+    def location_from_utm_global_position_next_wp(self, m):
+        """Return the next waypoint in a UTM_GLOBAL_POSITION message as a Location."""
+        return mavutil.location(m.next_lat * 1e-7, m.next_lon * 1e-7, 0, 0)
 
     @staticmethod
     def get_distance_accurate(loc1, loc2):
@@ -7006,11 +7006,23 @@ class TestSuite(abc.ABC):
     @staticmethod
     def get_lat_attr(loc):
         '''return any found latitude attribute from loc'''
+        if hasattr(loc, 'get_type'):
+            msg_type = loc.get_type()
+            if msg_type == 'MISSION_ITEM_INT':
+                return loc.x
+            if msg_type == 'UTM_GLOBAL_POSITION':
+                return loc.next_lat
         return TestSuite.get_latlon_attr(loc, ["lat", "latitude"])
 
     @staticmethod
     def get_lon_attr(loc):
-        '''return any found latitude attribute from loc'''
+        '''return any found longitude attribute from loc'''
+        if hasattr(loc, 'get_type'):
+            msg_type = loc.get_type()
+            if msg_type == 'MISSION_ITEM_INT':
+                return loc.y
+            if msg_type == 'UTM_GLOBAL_POSITION':
+                return loc.next_lon
         return TestSuite.get_latlon_attr(loc, ["lng", "lon", "longitude"])
 
     @staticmethod
@@ -7025,14 +7037,6 @@ class TestSuite(abc.ABC):
         return TestSuite.get_distance_accurate(
             mavutil.location(loc1_lat*1e-7, loc1_lon*1e-7),
             mavutil.location(loc2_lat*1e-7, loc2_lon*1e-7))
-
-        # dlat = loc2_lat - loc1_lat
-        # dlong = loc2_lon - loc1_lon
-        #
-        # dlat /= 10000000.0
-        # dlong /= 10000000.0
-        #
-        # return math.sqrt((dlat*dlat) + (dlong*dlong)) * 1.113195e5
 
     def bearing_to(self, loc):
         '''return bearing from here to location'''
@@ -8551,7 +8555,7 @@ class TestSuite(abc.ABC):
                 self.progress("Prearm bit never went true.  Attempting arm to elicit reason from autopilot")
                 try:
                     self.arm_vehicle()
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
                 raise AutoTestTimeoutException("Prearm bit never went true")
             if self.sensor_has_state(mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK, True, True, True):
@@ -9147,7 +9151,7 @@ Also, ignores heartbeats not from our target system'''
                 self.set_parameter("SIM_SPEEDUP", test.speedup)
 
             test_function(**test_kwargs)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
             # reset the message hooks; we've failed-via-exception and
@@ -9173,7 +9177,7 @@ Also, ignores heartbeats not from our target system'''
         try:
             self.wait_heartbeat()
             ardupilot_alive = True
-        except Exception:
+        except Exception:  # noqa: BLE001
             # process is dead
             self.progress("No heartbeat after test", send_statustext=False)
             self.dump_process_status(result)
@@ -9183,7 +9187,7 @@ Also, ignores heartbeats not from our target system'''
 
         try:
             self.context_pop(process_interaction_allowed=ardupilot_alive, hooks_already_removed=hooks_removed)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e, send_statustext=False)
             passed = False
 
@@ -9239,7 +9243,7 @@ Also, ignores heartbeats not from our target system'''
             while len(self.contexts) > old_contexts_length:
                 try:
                     self.context_pop(process_interaction_allowed=ardupilot_alive, hooks_already_removed=hooks_removed)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     self.print_exception_caught(e, send_statustext=False)
             self.progress("Done popping extra contexts")
 
@@ -9581,7 +9585,7 @@ Also, ignores heartbeats not from our target system'''
         while True:
             if self.get_sim_time_cached() - tstart > timeout:
                 raise NotAchievedException("Did not get MISSION_COUNT packet")
-            m = self.mav.recv_match(blocking=True, timeout=0.1)
+            m = self.mav.recv_match(blocking=True, timeout=0.2)
             if m is None:
                 raise NotAchievedException("Did not get MISSION_COUNT response")
             if verbose:
@@ -9705,6 +9709,15 @@ Also, ignores heartbeats not from our target system'''
                                 target_lng,
                                 location.alt,
                                 location.heading)
+
+    def offset_location_up(self, location, metres_up):
+        '''return a new location offset from passed-in location'''
+        return mavutil.location(
+            location.lat,
+            location.lng,
+            location.alt + metres_up,
+            location.heading
+        )
 
     def offset_location_heading_distance(self, location, bearing, distance):
         (target_lat, target_lng) = mavextra.gps_newpos(
@@ -9925,7 +9938,7 @@ Also, ignores heartbeats not from our target system'''
 
     # this autotest appears to interfere with FixedYawCalibration, no idea why.
     def SITLCompassCalibration(self, compass_count=3, timeout=1000):
-        '''Test Fixed Yaw Calibration"'''
+        '''Test Compass Calibration"'''
 
         timeout /= 8
         timeout *= self.speedup
@@ -10219,7 +10232,7 @@ Also, ignores heartbeats not from our target system'''
                 do_prep_mag_cal_test(mavproxy, curr_params)
                 do_test_mag_cal(mavproxy, curr_params, ntest_compass)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.progress("Caught exception: %s" %
                           self.get_exception_stacktrace(e))
             ex = e
@@ -10580,7 +10593,7 @@ Also, ignores heartbeats not from our target system'''
             self.reboot_sitl()
             self.wait_ready_to_arm(timeout=60)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             ex = e
 
         self.context_pop()
@@ -10626,7 +10639,7 @@ Also, ignores heartbeats not from our target system'''
                         raise NotAchievedException("Exceptionally low transfer rate (%u < %u)" % (rate, desired_rate))
             self.disarm_vehicle()
             mavproxy.send('repeat remove 0\n')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             self.disarm_vehicle()
             ex = e
@@ -10710,7 +10723,7 @@ Also, ignores heartbeats not from our target system'''
             mavproxy.send("log erase\n")
             mavproxy.expect("Chip erase complete")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
         mavproxy.send("module unload log\n")
@@ -10741,7 +10754,7 @@ Also, ignores heartbeats not from our target system'''
                     m = mlog.recv_match()
                     if m is None:
                         break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 raise NotAchievedException("Error reading log file %s: %s" % (logname, str(e)))
 
         herrors = 0
@@ -10821,7 +10834,7 @@ Also, ignores heartbeats not from our target system'''
             mavproxy.send("log erase\n")
             mavproxy.expect("Chip erase complete")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -11309,7 +11322,7 @@ Also, ignores heartbeats not from our target system'''
                 self.set_message_rate_hz(message, rate)
             for message in messages:
                 self.assert_message_rate_hz(message, rate)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -11376,7 +11389,7 @@ Also, ignores heartbeats not from our target system'''
             if m.result != mavutil.mavlink.MAV_RESULT_FAILED:
                 raise NotAchievedException("Getting rate of unsupported message is a failure")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -11387,7 +11400,7 @@ Also, ignores heartbeats not from our target system'''
         if ex is not None:
             raise ex
 
-    def send_poll_message(self, message_id, target_sysid=None, target_compid=None, quiet=False, mav=None):
+    def send_poll_message(self, message_id, target_sysid=None, target_compid=None, quiet=False, mav=None, p2=0):
         if mav is None:
             mav = self.mav
         if isinstance(message_id, str):
@@ -11395,13 +11408,14 @@ Also, ignores heartbeats not from our target system'''
         self.send_cmd(
             mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
             p1=message_id,
+            p2=p2,
             target_sysid=target_sysid,
             target_compid=target_compid,
             quiet=quiet,
             mav=mav,
         )
 
-    def poll_message(self, message_id, timeout=10, quiet=False, mav=None, target_sysid=None, target_compid=None):
+    def poll_message(self, message_id, timeout=10, quiet=False, mav=None, target_sysid=None, target_compid=None, p2=0):
         if mav is None:
             mav = self.mav
         if target_sysid is None:
@@ -11411,7 +11425,7 @@ Also, ignores heartbeats not from our target system'''
         if isinstance(message_id, str):
             message_id = eval("mavutil.mavlink.MAVLINK_MSG_ID_%s" % message_id)
         tstart = self.get_sim_time() # required for timeout in run_cmd_get_ack to work
-        self.send_poll_message(message_id, quiet=quiet, mav=mav, target_sysid=target_sysid, target_compid=target_compid)
+        self.send_poll_message(message_id, quiet=quiet, mav=mav, target_sysid=target_sysid, target_compid=target_compid, p2=p2)
         self.run_cmd_get_ack(
             mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
             mavutil.mavlink.MAV_RESULT_ACCEPTED,
@@ -11530,7 +11544,7 @@ Also, ignores heartbeats not from our target system'''
             self.wait_statustext("Config error", wallclock_timeout=True)
             self.progress("Setting %s to %f" % (parameter_name, new_parameter_value))
             self.set_parameter(parameter_name, new_parameter_value)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             ex = e
 
         self.progress("Resetting SIM_BARO_COUNT")
@@ -12925,7 +12939,7 @@ switch value'''
             self.context_pop()
             self.set_parameter("AFS_TERMINATE", 0)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             ex = e
         try:
             self.do_fence_disable()
@@ -13084,7 +13098,7 @@ switch value'''
                             (v, pname, expected_v, error_pct))
                     else:
                         self.progress("Correct value %.4f for %s error %.2f%%" % (v, pname, error_pct))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
         self.mavproxy_unload_module(mavproxy, "relay")
@@ -14459,7 +14473,7 @@ switch value'''
             self.progress("Writing vtx_unknown")
             crsf.write_data_id(crsf.dataid_vtx_unknown)
             self.delay_sim_time(5)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
         self.context_pop()
@@ -14731,12 +14745,12 @@ switch value'''
                 try:
                     mavproxy.expect("No transfer in progress", timeout=1)
                     break
-                except Exception:
+                except Exception:  # noqa: BLE001
                     continue
             # terminate the connection, or it may still be in progress the next time an FTP is attempted:
             mavproxy.send("ftp cancel\n")
             mavproxy.expect("Terminated session")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -14764,7 +14778,7 @@ switch value'''
                 raise NotAchievedException("No directories?!")
             expected_line = " D %s" % some_directory
             mavproxy.expect(expected_line)  # one line from the ftp list output
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self.print_exception_caught(e)
             ex = e
 
@@ -14905,6 +14919,454 @@ SERIAL5_BAUD 128
         # vehicle's arm state!  Could we use SYS_STATUS here instead?
         self.delay_sim_time(10)
         self.end_subtest("Testing percentage output")
+
+    def FenceRelative_fly_north_then_descend(self, north_m, timeout=120):
+        '''fly north_m metres north in GUIDED mode then descend.
+
+        Uses MAV_CMD_DO_REPOSITION (wpnav) to fly off the KalaupapaCliffs
+        cliff edge where terrain drops to near sea level.  After arriving,
+        switches back to the vehicle's loiter mode and lowers throttle to
+        descend below the min altitude fence floor.
+        Caller must call wait_mode('RTL') to confirm the fence breach.
+        '''
+        current_loc = self.mav.location()
+        target_loc = self.offset_location_heading_distance(current_loc, 0, north_m)
+
+        # At KalaupapaCliffs the terrain rises ~40 m in the first 100 m
+        # north (interpolated from the 100 m SRTM grid) before dropping
+        # off the cliff face to near sea level.  215 m AMSL clears this
+        # ridge (~206 m AMSL) while staying 10 m below both tests' max
+        # fence altitude (225 m AMSL), so use the higher of the current
+        # altitude and 215 m AMSL.
+        reposition_alt_amsl = max(current_loc.alt, 215.0)
+
+        # fly to target using GUIDED mode waypoint navigation
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            -1,   # ground speed (-1 = use default)
+            1,    # flags: change mode to GUIDED
+            0,    # loiter radius
+            0,    # yaw (no change)
+            int(target_loc.lat * 1e7),
+            int(target_loc.lng * 1e7),
+            reposition_alt_amsl,
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL,
+        )
+        self.wait_location(target_loc, accuracy=50, height_accuracy=None,
+                           timeout=timeout)
+
+        # switch back to loiter mode and descend to breach the fence floor
+        self.change_mode(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1200)
+
+    def FenceRelative_params(self):
+        '''returns a set of base parameters for FenceRelative test'''
+        return {
+            "FENCE_ALT_MAX_TP": 1,  # 1 is above-home
+            "FENCE_ENABLE": 1,
+            "FENCE_TYPE": 9,  # ALT_MAX|ALT_MIN
+            "FENCE_ALT_MAX": 20,
+        }
+
+    def FenceRelativePreArms(self):
+        '''test fence altitude types'''
+        self.customise_SITL_commandline([
+            "--home", "KalaupapaCliffs",
+        ])
+        self.set_parameters(self.FenceRelative_params())
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+
+        self.start_subtest("Above home-relative fence")
+        self.set_home(self.offset_location_up(original_home, -2))
+        self.set_parameters({
+            "FENCE_ALT_MIN": -10,
+            "FENCE_ALT_MAX": 0,
+        })
+        self.assert_prearm_failure("PreArm: Vehicle breaching Max Alt fence")
+        self.customise_SITL_commandline([])
+
+    def FenceRelativeToHome_params(self):
+        '''returns parameters for FenceRelativeToHome test'''
+        ret = self.FenceRelative_params()
+        ret["FENCE_ALT_MIN_TP"] = 1  # above-home (ALT_MAX_TP=1 already in base)
+        return ret
+
+    def FenceRelativeToOrigin_params(self):
+        '''returns parameters for FenceRelativeToOrigin test'''
+        ret = self.FenceRelative_params()
+        ret["FENCE_ALT_MAX_TP"] = 2  # above EKF origin
+        ret["FENCE_ALT_MIN_TP"] = 2  # above EKF origin
+        return ret
+
+    def FenceRelativeToAMSL_params(self):
+        '''returns parameters for FenceRelativeToAMSL test'''
+        ret = self.FenceRelative_params()
+        ret["FENCE_ALT_MAX_TP"] = 0  # AMSL
+        ret["FENCE_ALT_MIN_TP"] = 0  # AMSL
+        # disable fence at setup time: with AMSL frame the base FENCE_ALT_MAX=20
+        # would immediately breach at KalaupapaCliffs (~165 m AMSL)
+        ret["FENCE_ENABLE"] = 0
+        return ret
+
+    def FenceRelativeToTerrain_params(self):
+        '''returns parameters for FenceRelativeToTerrain test'''
+        ret = self.FenceRelative_params()
+        ret["FENCE_ALT_MAX_TP"] = 3  # above terrain
+        ret["FENCE_ALT_MIN_TP"] = 3  # above terrain
+        ret["TERRAIN_ENABLE"] = 1
+        return ret
+
+    def FenceRelativeToHomeMaxAlt(self):
+        '''fence max-alt threshold is measured relative to home, not EKF origin'''
+        self.set_parameters(self.FenceRelativeToHome_params())
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        home_ofs = 20
+        fence_alt_max = 20  # m above home = 40 m above origin
+        offset_home = self.offset_location_up(original_home, home_ofs)
+        self.set_home(offset_home)
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_alt_max,
+        })
+        self.takeoff(10, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = offset_home.alt + fence_alt_max
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToHomeMinAlt(self):
+        '''fence min-alt threshold is measured relative to home, not EKF origin'''
+        fence_alt_min = 5   # m above home = 25 m above origin
+        params = copy.copy(self.FenceRelativeToHome_params())
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 50,  # generous ceiling
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        home_ofs = 20
+        offset_home = self.offset_location_up(original_home, home_ofs)
+        self.set_home(offset_home)
+        self.takeoff(10, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = offset_home.alt + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToHomeMaxAltOriginAbove(self):
+        '''fence max-alt relative to home when origin is above home'''
+        self.set_parameters(self.FenceRelativeToHome_params())
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        home_ofs = -20
+        fence_alt_max = 30  # m above home = 10 m above origin
+        offset_home = self.offset_location_up(original_home, home_ofs)
+        self.set_home(offset_home)
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_alt_max,
+        })
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = offset_home.alt + fence_alt_max
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToHomeMinAltOriginAbove(self):
+        '''fence min-alt relative to home when origin is above home'''
+        # 26 m above home = 6 m above origin; wrong origin-frame would
+        # see vehicle (10 m above origin) as below the 26 m fence → breach
+        fence_alt_min = 26
+        params = self.FenceRelativeToHome_params()
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 50,  # generous ceiling
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        home_ofs = -20
+        offset_home = self.offset_location_up(original_home, home_ofs)
+        self.set_home(offset_home)
+        self.takeoff(30, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = offset_home.alt + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToHomeCliff(self):
+        '''home-relative min fence below arming altitude requires cliff to breach'''
+        self.install_terrain_handlers_context()
+        self.customise_SITL_commandline(["--home", "KalaupapaCliffs"])
+        fence_alt_min = 5   # m above home = ~150 m AMSL, 15 m below arming alt
+        params = self.FenceRelativeToHome_params()
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 80,  # generous ceiling
+            "FENCE_RADIUS": 10000,  # ensure circle fence cannot limit north flight
+            "TERRAIN_ENABLE": 1,
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        home_ofs = -20
+        offset_home = self.offset_location_up(original_home, home_ofs)
+        self.set_home(offset_home)
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.FenceRelative_fly_north_then_descend(150)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = offset_home.alt + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.customise_SITL_commandline([])
+
+    def FenceRelativeToOriginMaxAlt(self):
+        '''fence max-alt threshold is measured relative to EKF origin, not home'''
+        self.set_parameters(self.FenceRelativeToOrigin_params())
+        self.wait_ready_to_arm()
+        origin_alt_m = self.poll_message("GPS_GLOBAL_ORIGIN").altitude / 1000.0
+        fence_alt_max = 10  # m above origin = 30 m above home
+        original_home = self.home_position_as_mav_location()
+        self.set_home(self.offset_location_up(original_home, -20))
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_alt_max,
+        })
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = origin_alt_m + fence_alt_max
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToOriginMinAlt(self):
+        '''fence min-alt threshold is measured relative to EKF origin, not home'''
+        fence_alt_min = 3   # m above origin = 23 m above home
+        params = self.FenceRelativeToOrigin_params()
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 50,  # generous ceiling
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        origin_alt_m = self.poll_message("GPS_GLOBAL_ORIGIN").altitude / 1000.0
+        original_home = self.home_position_as_mav_location()
+        self.set_home(self.offset_location_up(original_home, -20))
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = origin_alt_m + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToOriginMaxAltHomeAbove(self):
+        '''fence max-alt relative to origin when home is above origin'''
+        self.set_parameters(self.FenceRelativeToOrigin_params())
+        self.wait_ready_to_arm()
+        ground_loc = self.home_position_as_mav_location()
+        origin_alt_m = self.poll_message("GPS_GLOBAL_ORIGIN").altitude / 1000.0
+        fence_alt_max = 50  # m above origin = 30 m above home
+        # take off first from home==origin so relative alt starts at 0
+        self.takeoff(10, mode=self.FenceRelative_TakeoffMode())
+        # now move home 20 m above origin; vehicle at 10 m above origin
+        # is safely below the fence max at 50 m above origin
+        original_home = self.mav.location()
+        self.set_home(self.offset_location_up(original_home, 10))
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_alt_max,
+        })
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = origin_alt_m + fence_alt_max
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(ground_loc)
+
+    def FenceRelativeToOriginMinAltHomeAbove(self):
+        '''fence min-alt relative to origin when home is above origin'''
+        # 15 m above origin = 180 m AMSL (5 m below home); vehicle at
+        # 10 m above home = 30 m above origin is above the origin fence.
+        # A home-frame interpretation would place the fence at 15 m above
+        # home = 200 m AMSL, above the vehicle at 195 m → immediate breach.
+        fence_alt_min = 15
+        params = self.FenceRelativeToOrigin_params()
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 80,  # generous ceiling
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        ground_loc = self.home_position_as_mav_location()
+        origin_alt_m = self.poll_message("GPS_GLOBAL_ORIGIN").altitude / 1000.0
+        # take off first from home==origin so relative alt starts at 0
+        self.takeoff(30, mode=self.FenceRelative_TakeoffMode())
+        # now move home 20 m above origin; vehicle at 30 m above origin
+        # is safely above the fence min at 15 m above origin
+        original_home = self.mav.location()
+        self.set_home(self.offset_location_up(original_home, -10))
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = origin_alt_m + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(ground_loc)
+
+    def FenceRelativeToAMSLMaxAlt(self):
+        '''fence max-alt threshold is interpreted as AMSL, not home-relative'''
+        self.set_parameters(self.FenceRelativeToAMSL_params())
+        # reboot clears any lingering breach state from prior tests
+        self.reboot_sitl()
+        self.wait_ready_to_arm()
+        ggo = self.poll_message("GPS_GLOBAL_ORIGIN")
+        origin_alt_m = ggo.altitude / 1000.0  # mm -> m
+        fence_max_amsl = origin_alt_m + 25
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_max_amsl,
+        })
+        self.takeoff(15, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = fence_max_amsl
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+
+    def FenceRelativeToAMSLMinAlt(self):
+        '''fence min-alt threshold is interpreted as AMSL, not home-relative'''
+        self.set_parameters(self.FenceRelativeToAMSL_params())
+        # reboot clears any lingering breach state from prior tests
+        self.reboot_sitl()
+        self.wait_ready_to_arm()
+        ggo = self.poll_message("GPS_GLOBAL_ORIGIN")
+        origin_alt_m = ggo.altitude / 1000.0  # mm -> m
+        fence_min_amsl = origin_alt_m + 10
+        self.set_parameters({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_min_amsl,
+            "FENCE_ALT_MAX": origin_alt_m + 50,  # generous AMSL ceiling
+        })
+        self.takeoff(20, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = fence_min_amsl
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+
+    def FenceRelativeToAMSLCliff(self):
+        '''AMSL min fence below arming altitude requires cliff to breach'''
+        self.install_terrain_handlers_context()
+        self.customise_SITL_commandline(["--home", "KalaupapaCliffs"])
+        self.set_parameters(self.FenceRelativeToAMSL_params())
+        self.wait_ready_to_arm()
+        ggo = self.poll_message("GPS_GLOBAL_ORIGIN")
+        origin_alt_m = ggo.altitude / 1000.0  # mm -> m
+        fence_min_below_arming = origin_alt_m - 15
+        self.set_parameters({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_min_below_arming,
+            "FENCE_ALT_MAX": origin_alt_m + 60,  # generous AMSL ceiling
+            "FENCE_RADIUS": 10000,  # ensure circle fence cannot limit north flight
+            "TERRAIN_ENABLE": 1,
+        })
+        self.takeoff(20, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.FenceRelative_fly_north_then_descend(150)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = fence_min_below_arming
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.customise_SITL_commandline([])
+
+    def FenceRelativeToTerrainMaxAlt(self):
+        '''fence max-alt threshold is interpreted as AGL (terrain-relative)'''
+        self.install_terrain_handlers_context()
+        self.set_parameters(self.FenceRelativeToTerrain_params())
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        # home is placed 20 m below terrain; terrain AMSL ≈ original_home.alt
+        terrain_alt_amsl = original_home.alt
+        fence_alt_max = 10  # m AGL = 30 m above home
+        offset_home = self.offset_location_up(original_home, -20)
+        self.set_home(offset_home)
+        self.set_parameters({
+            "FENCE_TYPE": 1,   # ALT_MAX only
+            "FENCE_ALT_MAX": fence_alt_max,
+        })
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.assert_mode_is(self.FenceRelative_TakeoffMode())
+        self.set_rc(3, 1800)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = terrain_alt_amsl + fence_alt_max
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
+
+    def FenceRelativeToTerrainMinAlt(self):
+        '''fence min-alt threshold is interpreted as AGL (terrain-relative)'''
+        self.install_terrain_handlers_context()
+        fence_alt_min = 3   # m AGL = 23 m above home
+        params = self.FenceRelativeToTerrain_params()
+        params.update({
+            "FENCE_TYPE": 8,   # ALT_MIN only
+            "FENCE_ALT_MIN": fence_alt_min,
+            "FENCE_ALT_MAX": 50,  # generous ceiling
+        })
+        self.set_parameters(params)
+        self.wait_ready_to_arm()
+        original_home = self.home_position_as_mav_location()
+        # home is placed 20 m below terrain; terrain AMSL ≈ original_home.alt
+        terrain_alt_amsl = original_home.alt
+        offset_home = self.offset_location_up(original_home, -20)
+        self.set_home(offset_home)
+        self.takeoff(25, mode=self.FenceRelative_TakeoffMode())
+        self.do_fence_enable()
+        self.set_rc(3, 1200)
+        self.wait_mode('RTL', timeout=120)
+        expected_breach_alt = terrain_alt_amsl + fence_alt_min
+        self.assert_altitude(expected_breach_alt, accuracy=10)
+        self.disarm_vehicle(force=True)
+        self.set_home(original_home)
 
     def MotorTest(self, timeout=60, **kwargs):
         '''Run Motor Tests'''  # common to Copter and QuadPlane

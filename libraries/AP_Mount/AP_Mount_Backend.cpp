@@ -120,6 +120,9 @@ void AP_Mount_Backend::update_mnt_target_from_rc_target()
     mnt_target.angle_rad.yaw_is_ef = FPV_option ? false : _yaw_lock;
     mnt_target.angle_rad.roll_is_ef = FPV_option ? false : _roll_lock;
     mnt_target.angle_rad.pitch_is_ef = FPV_option ? false : _pitch_lock;
+    mnt_target.rate_rads.yaw_is_ef = FPV_option ? false : _yaw_lock;
+    mnt_target.rate_rads.roll_is_ef = FPV_option ? false : _roll_lock;
+    mnt_target.rate_rads.pitch_is_ef = FPV_option ? false : _pitch_lock;
 
     // if RC_RATE is zero, targets are angle
     if (_params.rc_rate_max <= 0) {
@@ -616,7 +619,12 @@ void AP_Mount_Backend::write_log(uint64_t timestamp_us)
     float target_pitch = nanf;
     float target_yaw = nanf;
     bool target_yaw_is_ef = false;
-    IGNORE_RETURN(get_angle_target(target_roll, target_pitch, target_yaw, target_yaw_is_ef));
+    if (mnt_target.target_type == MountTargetType::ANGLE) {
+        target_roll = degrees(mnt_target.angle_rad.roll);
+        target_pitch = degrees(mnt_target.angle_rad.pitch);
+        target_yaw = degrees(mnt_target.angle_rad.yaw);
+        target_yaw_is_ef = mnt_target.angle_rad.yaw_is_ef;
+    }
 
     // get rangefinder distance
     float rangefinder_dist = nanf;
@@ -1275,6 +1283,7 @@ void AP_Mount_Backend::send_target_to_gimbal()
 }
 
 
+#if AP_SCRIPTING_ENABLED
 // get target rate in deg/sec. returns true on success
 bool AP_Mount_Backend::get_rate_target(float& roll_degs, float& pitch_degs, float& yaw_degs, bool& yaw_is_earth_frame)
 {
@@ -1301,7 +1310,6 @@ bool AP_Mount_Backend::get_angle_target(float& roll_deg, float& pitch_deg, float
     return false;
 }
 
-#if AP_SCRIPTING_ENABLED
 // return target location if available
 // returns true if a target location is available and fills in target_loc argument
 bool AP_Mount_Backend::get_location_target(Location &_target_loc)

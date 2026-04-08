@@ -10,13 +10,13 @@ undef AP_BARO_MS5611_ENABLED
 define AP_BARO_MS5611_ENABLED 1
 EOF
 
-nice time ./Tools/autotest/test_build_options.py --board=CubeOrange --extra-hwdef=/tmp/extra-hwdef.dat --no-run-with-defaults --no-disable-all --no-enable-in-turn | tee /tmp/tbo-out  # noqa
+nice time ./Tools/autotest/test_build_options.py --board=CubeOrange --extra-hwdef=/tmp/extra-hwdef.dat --no-run-with-defaults --no-disable-all --no-enable-in-turn | tee /tmp/tbo-out  # noqa: E501
 grep 'sabling.*saves' /tmp/tbo-out
 
- - note that a lot of the time explicitly disabling features will make the binary larger as the ROMFS includes the generated hwdef.h which will have the extra define in it  # noqa
+ - note that a lot of the time explicitly disabling features will make the binary larger as the ROMFS includes the generated hwdef.h which will have the extra define in it  # noqa: E501
 
 AP_FLAKE8_CLEAN
-"""
+"""  # noqa:E501
 
 import fnmatch
 import optparse
@@ -290,6 +290,7 @@ class TestBuildOptions(object):
             feature_define_whitelist.add('MODE_FLOWHOLD_ENABLED')
             feature_define_whitelist.add('MODE_FLIP_ENABLED')
             feature_define_whitelist.add('MODE_BRAKE_ENABLED')
+            feature_define_whitelist.add('MODE_THROW_ENABLED')
             feature_define_whitelist.add('AP_TEMPCALIBRATION_ENABLED')
             feature_define_whitelist.add('AC_PAYLOAD_PLACE_ENABLED')
             feature_define_whitelist.add('AP_AVOIDANCE_ENABLED')
@@ -324,7 +325,6 @@ class TestBuildOptions(object):
             feature_define_whitelist.add('QAUTOTUNE_ENABLED')
             feature_define_whitelist.add('AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED')
             feature_define_whitelist.add('HAL_QUADPLANE_ENABLED')
-            feature_define_whitelist.add('AP_BATTERY_WATT_MAX_ENABLED')
             feature_define_whitelist.add('MODE_AUTOLAND_ENABLED')
             feature_define_whitelist.add('AP_PLANE_GLIDER_PULLUP_ENABLED')
             feature_define_whitelist.add('AP_QUICKTUNE_ENABLED')
@@ -343,8 +343,12 @@ class TestBuildOptions(object):
             # required for these bindings:
             feature_define_whitelist.add('AP_SCRIPTING_BINDING_MOTORS_ENABLED')
 
+        if target.lower() not in ["plane", "rover"]:
+            # only Plane and Rover support battery watt limiting
+            feature_define_whitelist.add('AP_BATTERY_WATT_MAX_ENABLED')
+
         if target.lower() not in ["rover", "copter"]:
-            # only Plane and Copter instantiate Beacon
+            # only Rover and Copter instantiate Beacon
             feature_define_whitelist.add('AP_BEACON_ENABLED')
 
         if target.lower() != "rover":

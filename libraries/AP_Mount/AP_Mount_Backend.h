@@ -155,19 +155,26 @@ public:
     // handle GIMBAL_DEVICE_ATTITUDE_STATUS message
     virtual void handle_gimbal_device_attitude_status(const mavlink_message_t &msg) {}
 
+#if AP_SCRIPTING_ENABLED
     // get target rate in deg/sec. returns true on success
-    bool get_rate_target(float& roll_degs, float& pitch_degs, float& yaw_degs, bool& yaw_is_earth_frame);
+    virtual bool get_rate_target(float& roll_degs, float& pitch_degs, float& yaw_degs, bool& yaw_is_earth_frame);
 
     // get target angle in deg. returns true on success
-    bool get_angle_target(float& roll_deg, float& pitch_deg, float& yaw_deg, bool& yaw_is_earth_frame);
+    virtual bool get_angle_target(float& roll_deg, float& pitch_deg, float& yaw_deg, bool& yaw_is_earth_frame);
 
-#if AP_SCRIPTING_ENABLED
     // get mount target location. returns true on success
     bool get_location_target(Location &target_loc);
 #endif
 
     // accessors for scripting backends
     virtual void set_attitude_euler(float roll_deg, float pitch_deg, float yaw_bf_deg) {};
+
+#if AP_SCRIPTING_ENABLED
+    // used by a script sending messages to a physical device to
+    // indicate what targets can be either natively sent to the device
+    // or internally handled by the script
+    virtual void set_natively_supported_mount_target_types(uint8_t types_mask) { }
+#endif  // AP_SCRIPTING_ENABLED
 
     // write mount log packet
     void write_log(uint64_t timestamp_us);
@@ -270,6 +277,8 @@ protected:
         float roll;      // roll rate in radians/second
         float pitch;     // roll rate in radians/second
         float yaw;       // roll rate in radians/second
+        bool pitch_is_ef = true;
+        bool roll_is_ef = true;
         bool yaw_is_ef;  // if set then `yaw` is a rate in earth frame
     };
 

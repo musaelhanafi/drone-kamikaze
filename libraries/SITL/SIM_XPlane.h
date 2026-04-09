@@ -81,6 +81,7 @@ private:
     uint64_t time_base_us;
     uint32_t last_data_time_ms;
     uint32_t last_dref_ms;
+    uint32_t last_dsel_ms;
     bool     last_armed;
     Vector3d position_zero;
     Vector3f accel_earth;

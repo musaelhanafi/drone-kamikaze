@@ -318,9 +318,16 @@ void XPlane::select_data(void)
         // got it all
         return;
     }
+    // Throttle to 1 Hz — avoid flooding X-Plane with repeated DSEL packets
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - last_dsel_ms < 1000) {
+        return;
+    }
+    last_dsel_ms = now_ms;
+
     struct PACKED {
         uint8_t  marker[5] { 'D', 'S', 'E', 'L', '0' };
-        uint32_t data[8] {};
+        uint32_t data[ARRAY_SIZE(required_data)] {};
     } dsel;
     uint8_t count = 0;
     for (uint8_t i=0; i<ARRAY_SIZE(required_data); i++) {
@@ -332,7 +339,7 @@ void XPlane::select_data(void)
     }
     if (count != 0) {
         socket_out.send(&dsel, sizeof(dsel));
-        printf("Selecting %u data types\n", (unsigned)count);
+        printf("Selecting %u data types (waiting for X-Plane DATA stream)\n", (unsigned)count);
     }
 }
 
@@ -621,6 +628,17 @@ void XPlane::handle_rref(const uint8_t *pkt, uint32_t len)
     case RREF_VERSION:
         if (xplane_version == 0) {
             ::printf("XPlane version %.0f\n", ref_value_f);
+            // Now we know X-Plane is alive — connect socket_out so DSEL
+            // packets can reach it and DATA packets will start flowing.
+            if (!connected) {
+                uint16_t port;
+                socket_in.last_recv_address(xplane_ip, port);
+                socket_out.connect(xplane_ip, xplane_port);
+                connected = true;
+                printf("Connected to %s:%u\n", xplane_ip, (unsigned)xplane_port);
+                // seen_mask=0 forces select_data() to send DSEL on next update.
+                seen_mask = 0;
+            }
         }
         xplane_version = uint32_t(ref_value_f);
         break;
@@ -794,6 +812,10 @@ void XPlane::update(const struct sitl_input &input)
             last_dref_ms = now_ms;
             send_drefs(input);
         }
+    } else if (connected) {
+        // Connected (version received) but no DATA yet — keep requesting
+        // data selection until X-Plane starts streaming.
+        select_data();
     }
 
     uint32_t now = AP_HAL::millis();

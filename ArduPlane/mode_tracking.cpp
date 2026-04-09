@@ -85,6 +85,9 @@ void ModeTracking::handle_tracking_error(float errorx_rad, float errory_rad)
     _errorx_rad  = errorx_rad;
     _errory_rad  = errory_rad;
     _last_msg_ms = AP_HAL::millis();
+    ::printf("TRK ex=%.4f ey=%.4f deg (ex=%.2f ey=%.2f)\n",
+             errorx_rad, errory_rad,
+             degrees(errorx_rad), degrees(errory_rad));
 }
 
 

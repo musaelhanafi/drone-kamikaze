@@ -99,8 +99,22 @@ XPlane::XPlane(const char *frame_str) :
 {
     use_time_sync = false;
     const char *colon = strchr(frame_str, ':');
+    bool port_set_via_frame = false;
     if (colon) {
         xplane_ip = colon+1;
+        const char *colon2 = strchr(colon+1, ':');
+        if (colon2) {
+            bind_port = atoi(colon2+1);
+            port_set_via_frame = true;
+        }
+    }
+
+    // SIM_XPLANE_PORT param overrides default unless port was set via frame string
+    if (!port_set_via_frame) {
+        auto *sitl = AP::sitl();
+        if (sitl != nullptr && sitl->xplane_port_in != 49001) {
+            bind_port = sitl->xplane_port_in;
+        }
     }
 
     socket_in.bind("0.0.0.0", bind_port);

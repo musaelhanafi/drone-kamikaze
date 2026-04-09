@@ -246,6 +246,7 @@ public:
     AP_Int16 pin_mask; // for GPIO emulation
     AP_Float speedup; // simulation speedup
     AP_Int8  odom_enable; // enable visual odometry data
+    AP_Int16 xplane_port_in; // XPlane HIL receive port (default 49001)
     AP_Int8  telem_baudlimit_enable; // enable baudrate limiting on links
     AP_Float flow_noise; // optical flow measurement noise (rad/sec)
     AP_Int8  baro_count; // number of simulated baros to create

@@ -643,6 +643,13 @@ const AP_Param::GroupInfo SIM::var_info3[] = {
     AP_GROUPINFO("OSD_ROWS",     54, SIM,  osd_rows, 16),
 #endif
 
+    // @Param: XPLANE_PORT
+    // @DisplayName: XPlane receive port
+    // @Description: UDP port ArduPilot listens on for XPlane HIL data. Default 49001. Change if port conflicts with X-Plane input port.
+    // @Range: 1024 65535
+    // @User: Advanced
+    AP_GROUPINFO("XPLANE_PORT",   57, SIM,  xplane_port_in, 49001),
+
 #if AP_SIM_VOLZ_ENABLED
     // @Group: VOLZ_
     // @Path: ./SIM_Volz.cpp

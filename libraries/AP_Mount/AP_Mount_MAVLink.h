@@ -13,6 +13,12 @@
 #include <AP_Common/AP_Common.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
+// MAVLink older than 4.9 may not define this flag — value from MAVLink spec
+#ifndef GIMBAL_DEVICE_CAP_FLAGS_CAN_POINT_LOCATION_GLOBAL
+#define GIMBAL_DEVICE_CAP_FLAGS_CAN_POINT_LOCATION_GLOBAL \
+    static_cast<GIMBAL_DEVICE_CAP_FLAGS>(65536)
+#endif
+
 class AP_Mount_MAVLink : public AP_Mount_Backend
 {
 

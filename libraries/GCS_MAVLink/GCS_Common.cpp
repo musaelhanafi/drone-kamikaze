@@ -19,6 +19,24 @@
 
 #if HAL_GCS_ENABLED
 
+// MAVLink older headers may not define these PREFLIGHT_CALIBRATION accelerometer constants.
+// Values are from the MAVLink spec: MAV_CMD_PREFLIGHT_CALIBRATION param5.
+#ifndef PREFLIGHT_CALIBRATION_ACCELEROMETER_FULL
+#define PREFLIGHT_CALIBRATION_ACCELEROMETER_FULL       1
+#endif
+#ifndef PREFLIGHT_CALIBRATION_ACCELEROMETER_TRIM
+#define PREFLIGHT_CALIBRATION_ACCELEROMETER_TRIM       2
+#endif
+#ifndef PREFLIGHT_CALIBRATION_ACCELEROMETER_SIMPLE
+#define PREFLIGHT_CALIBRATION_ACCELEROMETER_SIMPLE     4
+#endif
+#ifndef PREFLIGHT_CALIBRATION_ACCELEROMETER_FORCE_SAVE
+#define PREFLIGHT_CALIBRATION_ACCELEROMETER_FORCE_SAVE 5
+#endif
+#ifndef PREFLIGHT_CALIBRATION_MAGNETOMETER_FORCE_SAVE
+#define PREFLIGHT_CALIBRATION_MAGNETOMETER_FORCE_SAVE  2
+#endif
+
 #include "GCS.h"
 
 #include <AC_Fence/AC_Fence.h>
@@ -6218,10 +6236,7 @@ void GCS_MAVLINK::send_sys_status()
         errors1,
         errors2,
         dropped_logmessage_count,  // errors3
-        errors4,  // errors4
-        0,  // control_sensors_present2,
-        0,  // control_sensors_enabled2,
-        0   // control_sensors_health2
+        errors4   // errors4
         );
 }
 
